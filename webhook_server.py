@@ -47,11 +47,17 @@ def menu_categorias(numero):
                     {
                         "title": "Categorías de comidas",
                         "rows": [
-                            {"id": f"cat_{i}", "title": t} for i, t in enumerate([
-                                "🍔 Hamburguesas", "🍕 Pizzas", "🍽 Minutas", "🥤 Bebidas sin alcohol",
-                                "🍺 Bebidas alcohólicas", "🍰 Postres", "🥗 Ensaladas", "🍝 Pastas",
-                                "🥪 Sándwiches", "⚡ Comidas rápidas", "📋 Ver todas las comidas"
-                            ], start=1)
+                            {"id": "cat_1", "title": "🍔 Hamburguesas"},
+                            {"id": "cat_2", "title": "🍕 Pizzas"},
+                            {"id": "cat_3", "title": "🍽 Minutas"},
+                            {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
+                            {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
+                            {"id": "cat_6", "title": "🍰 Postres"},
+                            {"id": "cat_7", "title": "🥗 Ensaladas"},
+                            {"id": "cat_8", "title": "🍝 Pastas"},
+                            {"id": "cat_9", "title": "🥪 Sándwiches"},
+                            {"id": "cat_10", "title": "⚡ Comidas rápidas"},
+                            {"id": "cat_all", "title": "📋 Ver todas las comidas"}
                         ]
                     }
                 ]
@@ -75,7 +81,7 @@ async def receive(request: Request):
             elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
                 envio = enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos")
             elif mensaje_lower in ['info', 'informacion', 'información']:
-                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. Y soy la version ultimtum de charlie garcia")
+                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. Y soy la version ultimtum de tu chael")
             elif mensaje_lower == 'menu':
                 interactive_msg = menu_categorias(numero)
                 envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
