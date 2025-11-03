@@ -9,16 +9,13 @@ import json
 from typing import Dict, Optional, Union, Tuple
 
 
-# ===================== CONFIGURACIÓN =====================
 WHATSAPP_API_URL = "https://graph.facebook.com/v22.0"
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN") or "EAAS2SGNAVIABPyYN1XI8ZAXj4G2IEF9PEPqyLgC51d1ZCXblVGlUuCNIgd8s6ewr1ZBJcaoGPZBZBsesoZARFZAsdBCCAzlTZAS6QQRLFhAwR6QEEkVy6b9QCxtvMWsEtLZAiBRyvPQ5Gzmq1ZBVH25PF1mwFIwaPHMz9oVxvm89eZBKAoeCKlAdQe25ioe8ZCjgikYhguncqqJJOKq3pZATCj317EZCu9hrBOIzfFAYISJw597yXQVJlR4dde7peXcYRkauMb1ZBRaCSQrq54zFZA7ZAdhz6"
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN") or "Chacalitas2025"
 
-# Si el ID no está en el entorno, usar el fijo de sandbox o prueba
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "871681339360716")
 
 
-# ===================== FUNCIONES AUXILIARES =====================
 
 def normalizar_numero_telefono(numero: str) -> str:
     """Normaliza el número de teléfono (elimina espacios y agrega + si falta)."""
@@ -28,7 +25,6 @@ def normalizar_numero_telefono(numero: str) -> str:
     return numero
 
 
-# ===================== FUNCIONES PARA ENVIAR MENSAJES =====================
 
 def enviar_mensaje_whatsapp(
     numero_telefono: str,
@@ -49,9 +45,8 @@ def enviar_mensaje_whatsapp(
         "Content-Type": "application/json"
     }
 
-    # Detectar si es un dict interactivo
     if isinstance(mensaje, dict):
-        payload = mensaje  # Ya es el JSON correcto para mensajes interactivos
+        payload = mensaje  
     elif usar_template:
         payload = {
             "messaging_product": "whatsapp",
@@ -88,7 +83,6 @@ def enviar_mensaje_whatsapp(
         return {"success": False, "error": str(e)}
 
 
-# ===================== FUNCIONES PARA RECIBIR MENSAJES =====================
 
 def procesar_mensaje_recibido(webhook_data: Dict) -> Optional[Tuple[str, str, str]]:
     """Procesa un JSON recibido desde el webhook de WhatsApp."""
