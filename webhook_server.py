@@ -3,18 +3,17 @@ Servidor webhook con FastAPI para recibir mensajes de WhatsApp
 """
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 import json
-import os
 from whatsapp_api import (
     procesar_mensaje_recibido,
     enviar_mensaje_whatsapp,
     WHATSAPP_PHONE_NUMBER_ID
 )
 
-app = FastAPI(title="WhatsApp Webhook Server")
+app = FastAPI()
 
-VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "Chacalitas2025")
+VERIFY_TOKEN = "Chacalitas2025"  # o el token que tengas en Meta
 
 
 @app.get("/")
@@ -37,30 +36,33 @@ async def health():
 
 
 @app.get("/webhook")
-async def verify_webhook(mode: str = None, challenge: str = None, token: str = None):
+async def verify(request: Request):
     """
     Endpoint para verificar el webhook de WhatsApp.
     WhatsApp enviará una petición GET con estos parámetros para verificar el servidor.
     """
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+
     print(f"\n[WEBHOOK VERIFICATION] Mode: {mode}, Token recibido: {token}")
     
     if mode == "subscribe" and token == VERIFY_TOKEN:
         print("[WEBHOOK VERIFICATION] ✅ Webhook verificado correctamente")
         return PlainTextResponse(challenge)
-    else:
-        print("[WEBHOOK VERIFICATION] ❌ Verificación fallida")
-        return JSONResponse({"error": "token no válido"}, status_code=403)
+    print("[WEBHOOK VERIFICATION] ❌ Verificación fallida")
+    return PlainTextResponse("Token inválido", status_code=403)
 
 
 @app.post("/webhook")
-async def receive_message(request: Request):
+async def receive(request: Request):
     """
     Endpoint para recibir mensajes de WhatsApp.
     WhatsApp enviará una petición POST cuando se reciba un mensaje.
     """
     try:
         data = await request.json()
-        print("📩 Mensaje recibido:", json.dumps(data, indent=2, ensure_ascii=False))
+        print("📩 Evento recibido:", json.dumps(data, indent=2, ensure_ascii=False))
         
         # Procesar el mensaje
         resultado = procesar_mensaje_recibido(data)
@@ -123,16 +125,13 @@ async def receive_message(request: Request):
                 print(f"   Para: {status.get('recipient_id', 'N/A')}")
                 print("-" * 60)
         
-        return "EVENT_RECEIVED"
+        return PlainTextResponse("EVENT_RECEIVED", status_code=200)
         
     except Exception as e:
         print(f"\n❌ ERROR al procesar webhook: {str(e)}")
         import traceback
         traceback.print_exc()
-        return JSONResponse(
-            {"error": str(e)},
-            status_code=500
-        )
+        return PlainTextResponse("ERROR", status_code=500)
 
 
 if __name__ == "__main__":
