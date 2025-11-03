@@ -25,15 +25,12 @@ async def verify(request: Request):
     mode = request.query_params.get("hub.mode")
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
-    print(f"\n[WEBHOOK VERIFY] Mode: {mode}, Token recibido: {token}")
 
     if mode == "subscribe" and token == VERIFY_TOKEN:
-        print("[WEBHOOK VERIFY] ✅ Verificación exitosa.")
         return PlainTextResponse(challenge)
-    print("[WEBHOOK VERIFY] ❌ Verificación fallida.")
     return PlainTextResponse("Token inválido", status_code=403)
 
-# --- Función auxiliar para generar menú de categorías ---
+# --- Función para generar menú interactivo ---
 def menu_categorias(numero):
     return {
         "messaging_product": "whatsapp",
@@ -50,17 +47,11 @@ def menu_categorias(numero):
                     {
                         "title": "Categorías de comidas",
                         "rows": [
-                            {"id": "cat_1", "title": "🍔 Hamburguesas"},
-                            {"id": "cat_2", "title": "🍕 Pizzas"},
-                            {"id": "cat_3", "title": "🍽 Minutas"},
-                            {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
-                            {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
-                            {"id": "cat_6", "title": "🍰 Postres"},
-                            {"id": "cat_7", "title": "🥗 Ensaladas"},
-                            {"id": "cat_8", "title": "🍝 Pastas"},
-                            {"id": "cat_9", "title": "🥪 Sándwiches"},
-                            {"id": "cat_10", "title": "⚡ Comidas rápidas"},
-                            {"id": "cat_all", "title": "📋 Ver todas las comidas"}
+                            {"id": f"cat_{i}", "title": t} for i, t in enumerate([
+                                "🍔 Hamburguesas", "🍕 Pizzas", "🍽 Minutas", "🥤 Bebidas sin alcohol",
+                                "🍺 Bebidas alcohólicas", "🍰 Postres", "🥗 Ensaladas", "🍝 Pastas",
+                                "🥪 Sándwiches", "⚡ Comidas rápidas", "📋 Ver todas las comidas"
+                            ], start=1)
                         ]
                     }
                 ]
@@ -68,49 +59,36 @@ def menu_categorias(numero):
         }
     }
 
-# --- Endpoint principal del webhook ---
+# --- Endpoint principal ---
 @app.post("/webhook")
 async def receive(request: Request):
     try:
         data = await request.json()
-        print("📩 Evento recibido:")
-        print(json.dumps(data, indent=2, ensure_ascii=False))
-
         resultado = procesar_mensaje_recibido(data)
+
         if resultado:
             numero, mensaje, tipo = resultado
-            print(f"\n📨 NUEVO MENSAJE de {numero} ({tipo}): {mensaje}")
             mensaje_lower = mensaje.lower().strip()
 
-            # Respuestas automáticas
             if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
-                respuesta = "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?"
-                envio = enviar_mensaje_whatsapp(numero, respuesta)
+                envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
             elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
-                respuesta = "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos"
-                envio = enviar_mensaje_whatsapp(numero, respuesta)
+                envio = enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos")
             elif mensaje_lower in ['info', 'informacion', 'información']:
-                respuesta = "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render."
-                envio = enviar_mensaje_whatsapp(numero, respuesta)
+                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render.")
             elif mensaje_lower == 'menu':
-                
                 interactive_msg = menu_categorias(numero)
                 envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
             else:
-                respuesta = f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones."
-                envio = enviar_mensaje_whatsapp(numero, respuesta)
+                envio = enviar_mensaje_whatsapp(numero, f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones.")
 
             if envio.get("success"):
                 print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
             else:
                 print(f"⚠️ Error al enviar respuesta: {envio.get('error')}")
 
-        else:
-            print("📊 Evento sin mensaje (probablemente actualización de estado).")
-
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
     except Exception as e:
-        print(f"\n❌ ERROR al procesar webhook: {e}")
         traceback.print_exc()
         return PlainTextResponse("ERROR", status_code=500)
