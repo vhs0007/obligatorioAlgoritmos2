@@ -30,11 +30,12 @@ def enviar_mensaje_whatsapp(numero, mensaje):
     import requests
     import json
 
-    url = f"https://graph.facebook.com/v17.0/{PHONE_NUMBER_ID}/messages"
+    url = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
+
 
     # Si es texto
     if isinstance(mensaje, str):
