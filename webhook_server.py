@@ -48,7 +48,6 @@ def menu_categorias(numero):
         }
     }
 
-# --- Webhook principal ---
 @app.post("/webhook")
 async def receive(request: Request):
     try:
@@ -61,18 +60,30 @@ async def receive(request: Request):
         numero, mensaje, _ = resultado
         texto = mensaje.lower().strip()
 
-        if ['hola', 'buenos dias', 'buenas tardes', 'buenas noches'] in texto :
+        if any(palabra in texto for palabra in ["hola", "buenos dias", "buenas tardes", "buenas noches"]):
             enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
-        elif ['help', 'ayuda', 'ayudame'] in texto :
-            enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- Hola: saludo\n- Info: información\n- Menu: ver productos")
-        elif  ['info', 'informacion', 'información'] in texto:
+
+        elif any(palabra in texto for palabra in ["help", "ayuda", "ayudame"]):
+            enviar_mensaje_whatsapp(
+                numero,
+                "📋 Comandos:\n- Hola: saludo\n- Info: información\n- Menu: ver productos"
+            )
+
+        elif any(palabra in texto for palabra in ["info", "informacion", "información"]):
             enviar_mensaje_whatsapp(numero, "🤖 Soy el bot de GordoEater Palometa 🍔")
-        elif ['menu', 'Menu'] in texto:
-            enviar_mensaje_whatsapp(menu_categorias(numero))
+
+        elif any(palabra in texto for palabra in ["menu", "menú"]):
+            enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+
         else:
-            enviar_mensaje_whatsapp(numero, f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones.")
+            enviar_mensaje_whatsapp(
+                numero,
+                f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones."
+            )
 
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-    except Exception:
+    except Exception as e:
+        print("❌ Error en webhook:", e)
         return PlainTextResponse("ERROR", status_code=500)
+
