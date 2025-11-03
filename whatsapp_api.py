@@ -6,11 +6,12 @@ Permite enviar y recibir mensajes.
 import requests
 import os
 import json
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Union, Tuple
+
 
 # ===================== CONFIGURACIÓN =====================
 WHATSAPP_API_URL = "https://graph.facebook.com/v22.0"
-WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN") or "EAAS2SGNAVIABP2PLZAorGPMPYGl1ZBfKjT9xRFB2aLj26xrGizawG9Nq86jgBFrf1criLJG2ZAOj2YreDOcCN0RAOB1xJXt7aGESkZCPocWcwxiOr98ZBIZAbDVBq8vmKN792W7hjCgIWQEZBxCQmJOuV4ZAIxXusZCn3bFhhfjn886KbQUc9NQ2IV6mbmTcfEZBPmCdNSqvNfSeAZCZA98jIlW0Og2CZBscIW1DXI8ZAmvBIJYwjYWB7GQRjgGus4wwehK4jZBZAEaGvYru0WOiiA4pZBBCt"
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN") or "EAAS2SGNAVIABPyYN1XI8ZAXj4G2IEF9PEPqyLgC51d1ZCXblVGlUuCNIgd8s6ewr1ZBJcaoGPZBZBsesoZARFZAsdBCCAzlTZAS6QQRLFhAwR6QEEkVy6b9QCxtvMWsEtLZAiBRyvPQ5Gzmq1ZBVH25PF1mwFIwaPHMz9oVxvm89eZBKAoeCKlAdQe25ioe8ZCjgikYhguncqqJJOKq3pZATCj317EZCu9hrBOIzfFAYISJw597yXQVJlR4dde7peXcYRkauMb1ZBRaCSQrq54zFZA7ZAdhz6"
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN") or "Chacalitas2025"
 
 # Si el ID no está en el entorno, usar el fijo de sandbox o prueba
@@ -29,10 +30,14 @@ def normalizar_numero_telefono(numero: str) -> str:
 
 # ===================== FUNCIONES PARA ENVIAR MENSAJES =====================
 
-def enviar_mensaje_whatsapp(numero_telefono: str, mensaje: str, usar_template: bool = False) -> Dict:
+def enviar_mensaje_whatsapp(
+    numero_telefono: str,
+    mensaje: Union[str, Dict],
+    usar_template: bool = False
+) -> Dict:
     """
     Envía un mensaje por WhatsApp.
-    Si usar_template=True, usa el template 'hello_world' (funciona fuera de la ventana de 24h).
+    Si usar_template=True, usa el template 'hello_world'.
     """
     if not numero_telefono or not mensaje:
         return {'success': False, 'error': 'Número y mensaje son obligatorios'}
@@ -44,22 +49,24 @@ def enviar_mensaje_whatsapp(numero_telefono: str, mensaje: str, usar_template: b
         "Content-Type": "application/json"
     }
 
-    payload = (
-        {
+    # Detectar si es un dict interactivo
+    if isinstance(mensaje, dict):
+        payload = mensaje  # Ya es el JSON correcto para mensajes interactivos
+    elif usar_template:
+        payload = {
             "messaging_product": "whatsapp",
             "to": numero,
             "type": "template",
             "template": {"name": "hello_world", "language": {"code": "en_US"}}
         }
-        if usar_template
-        else {
+    else:
+        payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
             "to": numero,
             "type": "text",
             "text": {"body": mensaje},
         }
-    )
 
     try:
         print(f"📤 Enviando mensaje a {numero}...")

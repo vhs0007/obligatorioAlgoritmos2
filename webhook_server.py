@@ -75,7 +75,7 @@ async def receive(request: Request):
             elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
                 envio = enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos")
             elif mensaje_lower in ['info', 'informacion', 'información']:
-                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render.")
+                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. Y soy la version ultimtum de charlie garcia")
             elif mensaje_lower == 'menu':
                 interactive_msg = menu_categorias(numero)
                 envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
