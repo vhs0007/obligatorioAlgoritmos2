@@ -39,8 +39,6 @@ def menu_categorias(numero):
                         {"id": "cat_6", "title": "🍰 Postres"},
                         {"id": "cat_7", "title": "🥗 Ensaladas"},
                         {"id": "cat_8", "title": "🍝 Pastas"},
-                        {"id": "cat_9", "title": "🥪 Sándwiches"},
-                        {"id": "cat_10", "title": "⚡ Comidas rápidas"},
                         {"id": "cat_all", "title": "📋 Ver todas las comidas"}
                     ]
                 }]
