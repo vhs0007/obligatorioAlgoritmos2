@@ -6,7 +6,6 @@ from whatsapp_api import procesar_mensaje_recibido, enviar_mensaje_whatsapp
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
 
-
 # --- Rutas básicas ---
 @app.get("/")
 async def home():
@@ -16,8 +15,6 @@ async def home():
 async def health():
     return {"status": "ok"}
 
-
-# --- Verificación del webhook ---
 @app.get("/webhook")
 async def verify(request: Request):
     mode = request.query_params.get("hub.mode")
@@ -29,17 +26,15 @@ async def verify(request: Request):
     return PlainTextResponse("Token inválido", status_code=403)
 
 
-# --- Función de paginación simple ---
 def paginar(lista, pagina=1, por_pagina=5):
     total = len(lista)
     total_paginas = (total + por_pagina - 1) // por_pagina
-    pagina = max(1, min(pagina, total_paginas))  # Evita pasar de los límites
+    pagina = max(1, min(pagina, total_paginas))  
 
     inicio = (pagina - 1) * por_pagina
     fin = inicio + por_pagina
     items = lista[inicio:fin]
 
-    # Botones de navegación
     if pagina < total_paginas:
         items.append({"id": f"next_{pagina + 1}", "title": "➡️ Siguiente página"})
     if pagina > 1:
@@ -48,7 +43,6 @@ def paginar(lista, pagina=1, por_pagina=5):
     return {"items": items, "pagina": pagina, "total": total_paginas}
 
 
-# --- Menú con paginación ---
 def menu_categorias(numero, pagina=1):
     categorias = [
         {"id": "cat_1", "title": "🍔 Hamburguesas"},
