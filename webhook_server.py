@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 import traceback
+import json
+
 from whatsapp_api import procesar_mensaje_recibido, enviar_mensaje_whatsapp, WHATSAPP_PHONE_NUMBER_ID
 
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
+
 
 # --- Endpoints básicos ---
 @app.get("/")
@@ -15,10 +18,13 @@ async def root():
         "endpoints": {"webhook": "/webhook", "health": "/health"},
     }
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
+
+# --- Verificación del webhook con Meta ---
 @app.get("/webhook")
 async def verify(request: Request):
     mode = request.query_params.get("hub.mode")
@@ -30,52 +36,8 @@ async def verify(request: Request):
     return PlainTextResponse("Token inválido", status_code=403)
 
 
-# --- Función de paginación ---
-def paginar(items, pagina=1, por_pagina=5):
-    total = len(items)
-    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
-
-    pagina = max(1, min(pagina, total_paginas))
-    inicio = (pagina - 1) * por_pagina
-    fin = inicio + por_pagina
-    items_pagina = items[inicio:fin].copy()
-
-    if pagina < total_paginas:
-        items_pagina.append({
-            "id": f"next_{pagina + 1}",
-            "title": "➡️ Siguiente página"
-        })
-    if pagina > 1:
-        items_pagina.insert(0, {
-            "id": f"prev_{pagina - 1}",
-            "title": "⬅️ Página anterior"
-        })
-
-    return {
-        "pagina_actual": pagina,
-        "total_paginas": total_paginas,
-        "items": items_pagina
-    }
-
-
-# --- Menú de categorías ---
-def menu_categorias(numero, pagina=1):
-    categorias = [
-        {"id": "cat_1", "title": "🍔 Hamburguesas"},
-        {"id": "cat_2", "title": "🍕 Pizzas"},
-        {"id": "cat_3", "title": "🍽 Minutas"},
-        {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
-        {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
-        {"id": "cat_6", "title": "🍰 Postres"},
-        {"id": "cat_7", "title": "🥗 Ensaladas"},
-        {"id": "cat_8", "title": "🍝 Pastas"},
-        {"id": "cat_9", "title": "🥪 Sándwiches"},
-        {"id": "cat_10", "title": "⚡ Comidas rápidas"},
-        {"id": "cat_all", "title": "📋 Ver todas las comidas"}
-    ]
-
-    paginacion = paginar(categorias, pagina)
-
+# --- Menú interactivo de categorías ---
+def menu_categorias(numero):
     return {
         "messaging_product": "whatsapp",
         "to": numero,
@@ -83,60 +45,96 @@ def menu_categorias(numero, pagina=1):
         "interactive": {
             "type": "list",
             "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEats! 😋"},
-            "body": {
-                "text": f"Seleccioná una categoría para ver nuestras opciones:\n"
-                        f"(Página {paginacion['pagina_actual']}/{paginacion['total_paginas']})"
-            },
+            "body": {"text": "Seleccioná una categoría para ver nuestras opciones:"},
             "footer": {"text": "Usá el menú para elegir 👇"},
             "action": {
                 "button": "Ver categorías",
                 "sections": [
                     {
                         "title": "Categorías de comidas",
-                        "rows": paginacion["items"]
+                        "rows": [
+                            {"id": "cat_1", "title": "🍔 Hamburguesas"},
+                            {"id": "cat_2", "title": "🍕 Pizzas"},
+                            {"id": "cat_3", "title": "🍽 Minutas"},
+                            {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
+                            {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
+                            {"id": "cat_6", "title": "🍰 Postres"},
+                            {"id": "cat_7", "title": "🥗 Ensaladas"},
+                            {"id": "cat_8", "title": "🍝 Pastas"},
+                            {"id": "cat_9", "title": "🥪 Sándwiches"},
+                            {"id": "cat_10", "title": "⚡ Comidas rápidas"},
+                            {"id": "cat_all", "title": "📋 Ver todas las comidas"},
+                        ],
                     }
-                ]
-            }
-        }
+                ],
+            },
+        },
     }
 
 
-# --- Webhook de recepción de mensajes ---
+# --- Endpoint principal (recibe mensajes) ---
 @app.post("/webhook")
 async def receive(request: Request):
     try:
         data = await request.json()
-        resultado = procesar_mensaje_recibido(data)
+        print(json.dumps(data, indent=2, ensure_ascii=False))  # útil para debug
 
-        if resultado:
-            numero, mensaje, tipo = resultado
-            mensaje_lower = mensaje.lower().strip()
+        # Ver si es una interacción de lista (click en menú)
+        if "messages" in data["entry"][0]["changes"][0]["value"]:
+            message = data["entry"][0]["changes"][0]["value"]["messages"][0]
+            numero = message["from"]
 
-            if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
-                envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
-            elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    "📋 Comandos disponibles:\n- 'Hola': saludo\n- 'Info': información del bot\n- 'Menu': ver productos"
-                )
-            elif mensaje_lower in ['info', 'informacion', 'información']:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. ¡Versión Ultimate del Chacal!"
-                )
-            elif mensaje_lower == 'menu':
-                interactive_msg = menu_categorias(numero)
-                envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
-            else:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    f"✅ Recibí tu mensaje: \"{mensaje}\".\nEscribí 'Ayuda' para ver opciones."
-                )
+            if message["type"] == "interactive":
+                tipo = message["interactive"]["type"]
 
-            if envio.get("success"):
-                print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
-            else:
-                print(f"⚠️ Error al enviar respuesta: {envio.get('error')}")
+                # El usuario tocó una opción del menú
+                if tipo == "list_reply":
+                    seleccion = message["interactive"]["list_reply"]
+                    cat_id = seleccion["id"]
+                    cat_titulo = seleccion["title"]
+
+                    print(f"📲 Usuario {numero} seleccionó: {cat_titulo} ({cat_id})")
+
+                    # Ejemplo: responder con productos de esa categoría
+                    respuesta = f"Mostrando productos de la categoría: {cat_titulo}"
+                    envio = enviar_mensaje_whatsapp(numero, respuesta)
+                    return PlainTextResponse("EVENT_RECEIVED", status_code=200)
+
+            # Si no es interactivo → mensaje normal
+            resultado = procesar_mensaje_recibido(data)
+            if resultado:
+                numero, mensaje, tipo = resultado
+                mensaje_lower = mensaje.lower().strip()
+
+                if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
+                    envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
+
+                elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
+                    envio = enviar_mensaje_whatsapp(
+                        numero,
+                        "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos"
+                    )
+
+                elif mensaje_lower in ['info', 'informacion', 'información']:
+                    envio = enviar_mensaje_whatsapp(
+                        numero,
+                        "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render."
+                    )
+
+                elif mensaje_lower == 'menu':
+                    interactive_msg = menu_categorias(numero)
+                    envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
+
+                else:
+                    envio = enviar_mensaje_whatsapp(
+                        numero,
+                        f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones."
+                    )
+
+                if envio.get("success"):
+                    print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
+                else:
+                    print(f"⚠️ Error al enviar respuesta: {envio.get('error')}")
 
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
