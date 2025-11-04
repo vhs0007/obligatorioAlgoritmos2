@@ -32,48 +32,8 @@ async def verify(request: Request):
     return PlainTextResponse("Token inválido", status_code=403)
 
 
-# --- 🔹 Lista de categorías (ejemplo) ---
-CATEGORIAS = [
-    {"id": "cat_1", "title": "🍔 Hamburguesas"},
-    {"id": "cat_2", "title": "🍕 Pizzas"},
-    {"id": "cat_3", "title": "🍽 Minutas"},
-    {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
-    {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
-    {"id": "cat_6", "title": "🍰 Postres"},
-    {"id": "cat_7", "title": "🥗 Ensaladas"},
-    {"id": "cat_8", "title": "🍝 Pastas"},
-    {"id": "cat_9", "title": "🥪 Sándwiches"},
-    {"id": "cat_10", "title": "⚡ Comidas rápidas"},
-    {"id": "cat_11", "title": "🌮 Tacos"},
-    {"id": "cat_12", "title": "🍗 Pollo frito"},
-    {"id": "cat_13", "title": "🥞 Desayunos"},
-    {"id": "cat_14", "title": "🍜 Ramen"},
-]
-
-
-# --- 🔹 Función de menú paginado ---
-def generar_menu_paginado(numero, items, pagina_actual=1, items_por_pagina=9):
-    """
-    Genera un menú paginado compatible con WhatsApp (máx 10 filas por sección)
-    """
-    total_items = len(items)
-    total_paginas = (total_items + items_por_pagina - 1) // items_por_pagina
-
-    inicio = (pagina_actual - 1) * items_por_pagina
-    fin = inicio + items_por_pagina
-    items_pagina = items[inicio:fin]
-
-    # ⚙️ Añadir botones de navegación respetando el límite de 10 filas
-    nav_buttons = []
-    if total_paginas > 1:
-        if pagina_actual < total_paginas:
-            nav_buttons.append({"id": f"next_{pagina_actual + 1}", "title": "➡️ Página siguiente"})
-        if pagina_actual > 1:
-            nav_buttons.append({"id": f"prev_{pagina_actual - 1}", "title": "⬅️ Página anterior"})
-
-    # Limitar para no exceder las 10 filas
-    items_pagina = items_pagina[: (10 - len(nav_buttons))] + nav_buttons
-
+# --- Función para generar menú interactivo ---
+def menu_categorias(numero):
     return {
         "messaging_product": "whatsapp",
         "to": numero,
@@ -81,22 +41,34 @@ def generar_menu_paginado(numero, items, pagina_actual=1, items_por_pagina=9):
         "interactive": {
             "type": "list",
             "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEats! 😋"},
-            "body": {
-                "text": f"Seleccioná una categoría para ver nuestras opciones (página {pagina_actual}/{total_paginas}):"
-            },
+            "body": {"text": "Seleccioná una categoría para ver nuestras opciones:"},
             "footer": {"text": "Usá el menú para elegir 👇"},
             "action": {
                 "button": "Ver categorías",
                 "sections": [
-                    {"title": "Categorías de comidas", "rows": items_pagina}
+                    {
+                        "title": "Categorías de comidas",
+                        "rows": [
+                            {"id": "cat_1", "title": "🍔 Hamburguesas"},
+                            {"id": "cat_2", "title": "🍕 Pizzas"},
+                            {"id": "cat_3", "title": "🍽 Minutas"},
+                            {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
+                            {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
+                            {"id": "cat_6", "title": "🍰 Postres"},
+                            {"id": "cat_7", "title": "🥗 Ensaladas"},
+                            {"id": "cat_8", "title": "🍝 Pastas"},
+                            {"id": "cat_9", "title": "🥪 Sándwiches"},
+                            {"id": "cat_10", "title": "⚡ Comidas rápidas"},
+                            {"id": "cat_all", "title": "📋 Ver todas las comidas"},
+                        ],
+                    }
                 ],
             },
         },
     }
 
 
-
-# --- 🔹 Endpoint principal ---
+# --- Endpoint principal ---
 @app.post("/webhook")
 async def receive(request: Request):
     try:
@@ -106,54 +78,31 @@ async def receive(request: Request):
         if resultado:
             numero, mensaje, tipo = resultado
             mensaje_lower = mensaje.lower().strip()
+
             print(f"📩 Mensaje recibido de {numero}: {mensaje_lower}")
 
-            envio = None
-
-            # 🟢 MENSAJES BASE
             if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    "¡Hola! 👋 Gracias por contactarnos. Escribí 'menu' para ver nuestras categorías 🍽️"
-                )
-
+                envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
             elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
                 envio = enviar_mensaje_whatsapp(
                     numero,
                     "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos"
                 )
-
             elif mensaje_lower in ['info', 'informacion', 'información']:
                 envio = enviar_mensaje_whatsapp(
                     numero,
                     "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. ¡Versión ultimátum de tu chaleco 😎!"
                 )
-
-            # 🟡 MENÚ PAGINADO
             elif mensaje_lower == 'menu':
-                interactive_msg = generar_menu_paginado(numero, CATEGORIAS, pagina_actual=1)
+                interactive_msg = menu_categorias(numero)
                 envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
-
-            # 🔁 NAVEGACIÓN ENTRE PÁGINAS
-            elif mensaje_lower.startswith("next_"):
-                pagina = int(mensaje_lower.split("_")[1])
-                interactive_msg = generar_menu_paginado(numero, CATEGORIAS, pagina_actual=pagina)
-                envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
-
-            elif mensaje_lower.startswith("prev_"):
-                pagina = int(mensaje_lower.split("_")[1])
-                interactive_msg = generar_menu_paginado(numero, CATEGORIAS, pagina_actual=pagina)
-                envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
-
-            # 🔸 RESPUESTA POR DEFECTO
             else:
                 envio = enviar_mensaje_whatsapp(
                     numero,
                     f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones."
                 )
 
-            # Log del envío
-            if envio and envio.get("success"):
+            if envio.get("success"):
                 print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
             else:
                 print(f"⚠️ Error al enviar respuesta: {envio.get('error')}")
