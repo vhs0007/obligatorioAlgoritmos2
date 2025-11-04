@@ -1,20 +1,15 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
-import json
 import traceback
-from whatsapp_api import procesar_mensaje_recibido, enviar_mensaje_whatsapp, WHATSAPP_PHONE_NUMBER_ID
+from whatsapp_api import procesar_mensaje_recibido, enviar_mensaje_whatsapp
 
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
 
-# --- Endpoints básicos ---
+# --- Rutas básicas ---
 @app.get("/")
-async def root():
-    return {
-        "message": "✅ WhatsApp Webhook Server funcionando",
-        "phone_number_id": WHATSAPP_PHONE_NUMBER_ID,
-        "endpoints": {"webhook": "/webhook", "health": "/health"},
-    }
+async def home():
+    return {"message": "Servidor WhatsApp activo"}
 
 @app.get("/health")
 async def health():
@@ -30,32 +25,22 @@ async def verify(request: Request):
         return PlainTextResponse(challenge)
     return PlainTextResponse("Token inválido", status_code=403)
 
-def paginar(items, pagina=1, por_pagina=5):
-    total = len(items)
-    total_paginas = (total + por_pagina - 1) // por_pagina
 
-    pagina = max(1, min(pagina, total_paginas))
+def paginar(lista, pagina=1, por_pagina=5):
+    total = len(lista)
+    total_paginas = (total + por_pagina - 1) 
+    pagina = max(1, min(pagina, total_paginas))  
 
     inicio = (pagina - 1) * por_pagina
     fin = inicio + por_pagina
-    items_pagina = items[inicio:fin]
+    items = lista[inicio:fin]
 
     if pagina < total_paginas:
-        items_pagina.append({
-            "id": f"next_{pagina + 1}",
-            "title": "➡️ Siguiente página"
-        })
+        items.append({"id": f"next_{pagina + 1}", "title": " Siguiente"})
     if pagina > 1:
-        items_pagina.insert(0, {
-            "id": f"prev_{pagina - 1}",
-            "title": "⬅️ Página anterior"
-        })
+        items.insert(0, {"id": f"prev_{pagina - 1}", "title": "Anterior"})
 
-    return {
-        "pagina_actual": pagina,
-        "total_paginas": total_paginas,
-        "items": items_pagina
-    }
+    return {"items": items, "pagina": pagina, "total": total_paginas}
 
 
 def menu_categorias(numero, pagina=1):
@@ -70,7 +55,7 @@ def menu_categorias(numero, pagina=1):
         {"id": "cat_8", "title": "🍝 Pastas"},
         {"id": "cat_9", "title": "🥪 Sándwiches"},
         {"id": "cat_10", "title": "⚡ Comidas rápidas"},
-        {"id": "cat_all", "title": "📋 Ver todas las comidas"}
+        {"id": "cat_all", "title": "📋 Ver todas las comidas"},
     ]
 
     paginacion = paginar(categorias, pagina)
@@ -81,56 +66,51 @@ def menu_categorias(numero, pagina=1):
         "type": "interactive",
         "interactive": {
             "type": "list",
-            "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEats! 😋"},
+            "header": {"type": "text", "text": "🍴 Menú GordoEats"},
             "body": {
-                "text": f"Seleccioná una categoría para ver nuestras opciones:\n(Página {paginacion['pagina_actual']}/{paginacion['total_paginas']})"
+                "text": f"Elegí una categoría 👇\n"
+                        f"(Página {paginacion['pagina']} de {paginacion['total']})"
             },
-            "footer": {"text": "Usá el menú para elegir 👇"},
             "action": {
                 "button": "Ver categorías",
                 "sections": [
-                    {
-                        "title": "Categorías de comidas",
-                        "rows": paginacion["items"]
-                    }
+                    {"title": "Categorías", "rows": paginacion["items"]}
                 ]
-            }
-        }
+            },
+        },
     }
 
-#Cuando se haga el menu de productos se puede reutilizar paginacion
-#Hay que ver como resolver el tomar el producto, se puede hacer un metodo grande usando el webhook o ver otra forma
 
-
+# --- Webhook principal ---
 @app.post("/webhook")
-async def receive(request: Request):
+async def recibir_mensaje(request: Request):
     try:
         data = await request.json()
         resultado = procesar_mensaje_recibido(data)
 
-        if resultado:
-            numero, mensaje, tipo = resultado
-            mensaje_lower = mensaje.lower().strip()
+        if not resultado:
+            return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-            if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
-                envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
-            elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
-                envio = enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos")
-            elif mensaje_lower in ['info', 'informacion', 'información']:
-                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. Y soy la version ultimtum de tu chael")
-            elif mensaje_lower == 'menu':
-                interactive_msg = menu_categorias(numero)
-                envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
-            else:
-                envio = enviar_mensaje_whatsapp(numero, f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones.")
+        numero, mensaje, tipo = resultado
+        texto = mensaje.lower().strip()
 
-            if envio.get("success"):
-                print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
-            else:
-                print(f"⚠️ Error al enviar respuesta: {envio.get('error')}")
+        if texto in ["hola", "buenas", "hi"]:
+            enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Juan es un panfleto")
+        elif texto in ["ayuda", "help"]:
+            enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- hola\n- info\n- menu")
+        elif texto in ["info", "informacion"]:
+            enviar_mensaje_whatsapp(numero, "Soy un Panfleto")
+        elif texto.startswith("menu"):
+            # Permite escribir "menu 2" para ir a la página 2, por ejemplo
+            partes = texto.split()
+            pagina = int(partes[1]) if len(partes) > 1 and partes[1].isdigit() else 1
+            msg = menu_categorias(numero, pagina)
+            enviar_mensaje_whatsapp(numero, msg, usar_template=False)
+        else:
+            enviar_mensaje_whatsapp(numero, f"Recibí tu mensaje: {mensaje}")
 
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         return PlainTextResponse("ERROR", status_code=500)
