@@ -9,7 +9,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Uso: python enviar_mensaje.py <numero_telefono> <mensaje>")
         print("\nEjemplos:")
-        print('  # Número de prueba (sandbox):')
+        print('  # Número de prueba :')
         print('  python enviar_mensaje.py "+15551648009" "Hola, este es un mensaje de prueba"')
         print('  # Número real (debe estar verificado):')
         print('  python enviar_mensaje.py "+59897465647" "Hola desde WhatsApp Business"')
