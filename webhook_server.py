@@ -52,7 +52,10 @@ CATEGORIAS = [
 
 
 # --- 🔹 Función de menú paginado ---
-def generar_menu_paginado(numero, items, pagina_actual=1, items_por_pagina=10):
+def generar_menu_paginado(numero, items, pagina_actual=1, items_por_pagina=9):
+    """
+    Genera un menú paginado compatible con WhatsApp (máx 10 filas por sección)
+    """
     total_items = len(items)
     total_paginas = (total_items + items_por_pagina - 1) // items_por_pagina
 
@@ -60,12 +63,16 @@ def generar_menu_paginado(numero, items, pagina_actual=1, items_por_pagina=10):
     fin = inicio + items_por_pagina
     items_pagina = items[inicio:fin]
 
-    # Botones de navegación
+    # ⚙️ Añadir botones de navegación respetando el límite de 10 filas
+    nav_buttons = []
     if total_paginas > 1:
         if pagina_actual < total_paginas:
-            items_pagina.append({"id": f"next_{pagina_actual + 1}", "title": "➡️ Página siguiente"})
+            nav_buttons.append({"id": f"next_{pagina_actual + 1}", "title": "➡️ Página siguiente"})
         if pagina_actual > 1:
-            items_pagina.append({"id": f"prev_{pagina_actual - 1}", "title": "⬅️ Página anterior"})
+            nav_buttons.append({"id": f"prev_{pagina_actual - 1}", "title": "⬅️ Página anterior"})
+
+    # Limitar para no exceder las 10 filas
+    items_pagina = items_pagina[: (10 - len(nav_buttons))] + nav_buttons
 
     return {
         "messaging_product": "whatsapp",
@@ -86,6 +93,7 @@ def generar_menu_paginado(numero, items, pagina_actual=1, items_por_pagina=10):
             },
         },
     }
+
 
 
 # --- 🔹 Endpoint principal ---
