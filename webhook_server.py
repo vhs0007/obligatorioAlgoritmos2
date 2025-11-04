@@ -15,9 +15,11 @@ async def root():
         "endpoints": {"webhook": "/webhook", "health": "/health"},
     }
 
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 @app.get("/webhook")
 async def verify(request: Request):
@@ -28,6 +30,7 @@ async def verify(request: Request):
     if mode == "subscribe" and token == VERIFY_TOKEN:
         return PlainTextResponse(challenge)
     return PlainTextResponse("Token inválido", status_code=403)
+
 
 # --- Función para generar menú interactivo ---
 def menu_categorias(numero):
@@ -64,6 +67,7 @@ def menu_categorias(numero):
         },
     }
 
+
 # --- Endpoint principal ---
 @app.post("/webhook")
 async def receive(request: Request):
@@ -75,6 +79,8 @@ async def receive(request: Request):
             numero, mensaje, tipo = resultado
             mensaje_lower = mensaje.lower().strip()
 
+            print(f"📩 Mensaje recibido de {numero}: {mensaje_lower}")
+
             if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
                 envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
             elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
@@ -85,7 +91,7 @@ async def receive(request: Request):
             elif mensaje_lower in ['info', 'informacion', 'información']:
                 envio = enviar_mensaje_whatsapp(
                     numero,
-                    "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. Y soy la versión ultimátum de tu chaleco 😎"
+                    "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. ¡Versión ultimátum de tu chaleco 😎!"
                 )
             elif mensaje_lower == 'menu':
                 interactive_msg = menu_categorias(numero)
@@ -103,6 +109,6 @@ async def receive(request: Request):
 
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         return PlainTextResponse("ERROR", status_code=500)

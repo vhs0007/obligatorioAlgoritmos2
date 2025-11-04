@@ -6,15 +6,12 @@ Permite enviar y recibir mensajes.
 import requests
 import os
 import json
-from typing import Dict, Optional, Union, Tuple
-
+from typing import Dict, Optional, Tuple
 
 WHATSAPP_API_URL = "https://graph.facebook.com/v22.0"
-WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN") or "EAAS2SGNAVIABPyYN1XI8ZAXj4G2IEF9PEPqyLgC51d1ZCXblVGlUuCNIgd8s6ewr1ZBJcaoGPZBZBsesoZARFZAsdBCCAzlTZAS6QQRLFhAwR6QEEkVy6b9QCxtvMWsEtLZAiBRyvPQ5Gzmq1ZBVH25PF1mwFIwaPHMz9oVxvm89eZBKAoeCKlAdQe25ioe8ZCjgikYhguncqqJJOKq3pZATCj317EZCu9hrBOIzfFAYISJw597yXQVJlR4dde7peXcYRkauMb1ZBRaCSQrq54zFZA7ZAdhz6"
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN") or "<TU_TOKEN_DE_ACCESO>"
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN") or "Chacalitas2025"
-
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "871681339360716")
-
 
 
 def normalizar_numero_telefono(numero: str) -> str:
@@ -25,17 +22,13 @@ def normalizar_numero_telefono(numero: str) -> str:
     return numero
 
 
-
-def enviar_mensaje_whatsapp(numero, mensaje):
-    import requests
-    import json
-
+def enviar_mensaje_whatsapp(numero, mensaje, usar_template=True):
+    """Envía un mensaje de texto o interactivo a través de la API de WhatsApp."""
     url = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-
 
     # Si es texto
     if isinstance(mensaje, str):
@@ -53,6 +46,16 @@ def enviar_mensaje_whatsapp(numero, mensaje):
     print("➡️ Enviado:", json.dumps(data, indent=2))
     print("⬅️ Respuesta:", response.status_code, response.text)
 
+    try:
+        res_json = response.json()
+        return {
+            "success": response.status_code == 200,
+            "message_id": res_json.get("messages", [{}])[0].get("id") if "messages" in res_json else None,
+            "error": res_json.get("error")
+        }
+    except Exception as e:
+        print("⚠️ Error al interpretar respuesta:", e)
+        return {"success": False, "error": str(e)}
 
 
 def procesar_mensaje_recibido(webhook_data: Dict) -> Optional[Tuple[str, str, str]]:
@@ -64,13 +67,24 @@ def procesar_mensaje_recibido(webhook_data: Dict) -> Optional[Tuple[str, str, st
         entry = webhook_data.get("entry", [{}])[0]
         changes = entry.get("changes", [{}])[0]
         value = changes.get("value", {})
-        messages = value.get("messages", [])
 
+        # ⚠️ Evitar procesar mensajes enviados por el propio negocio
+        if "statuses" in value:
+            # Estos son ACKs o confirmaciones de envío
+            return None
+
+        messages = value.get("messages", [])
         if not messages:
             return None
 
         message = messages[0]
         numero = message.get("from")
+
+        # 🚫 Evitar responderse a sí mismo
+        if numero == WHATSAPP_PHONE_NUMBER_ID:
+            print("🛑 Ignorando mensaje enviado por el propio bot.")
+            return None
+
         tipo = message.get("type", "unknown")
 
         if tipo == "text":
