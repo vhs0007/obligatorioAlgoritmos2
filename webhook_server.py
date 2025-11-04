@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
-import json
 import traceback
 from whatsapp_api import procesar_mensaje_recibido, enviar_mensaje_whatsapp, WHATSAPP_PHONE_NUMBER_ID
 
@@ -30,15 +29,16 @@ async def verify(request: Request):
         return PlainTextResponse(challenge)
     return PlainTextResponse("Token inválido", status_code=403)
 
+
+# --- Función de paginación ---
 def paginar(items, pagina=1, por_pagina=5):
     total = len(items)
-    total_paginas = (total + por_pagina - 1) // por_pagina
+    total_paginas = max(1, (total + por_pagina - 1) // por_pagina)
 
     pagina = max(1, min(pagina, total_paginas))
-
     inicio = (pagina - 1) * por_pagina
     fin = inicio + por_pagina
-    items_pagina = items[inicio:fin]
+    items_pagina = items[inicio:fin].copy()
 
     if pagina < total_paginas:
         items_pagina.append({
@@ -58,6 +58,7 @@ def paginar(items, pagina=1, por_pagina=5):
     }
 
 
+# --- Menú de categorías ---
 def menu_categorias(numero, pagina=1):
     categorias = [
         {"id": "cat_1", "title": "🍔 Hamburguesas"},
@@ -83,7 +84,8 @@ def menu_categorias(numero, pagina=1):
             "type": "list",
             "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEats! 😋"},
             "body": {
-                "text": f"Seleccioná una categoría para ver nuestras opciones:\n(Página {paginacion['pagina_actual']}/{paginacion['total_paginas']})"
+                "text": f"Seleccioná una categoría para ver nuestras opciones:\n"
+                        f"(Página {paginacion['pagina_actual']}/{paginacion['total_paginas']})"
             },
             "footer": {"text": "Usá el menú para elegir 👇"},
             "action": {
@@ -98,10 +100,8 @@ def menu_categorias(numero, pagina=1):
         }
     }
 
-#Cuando se haga el menu de productos se puede reutilizar paginacion
-#Hay que ver como resolver el tomar el producto, se puede hacer un metodo grande usando el webhook o vb
 
-
+# --- Webhook de recepción de mensajes ---
 @app.post("/webhook")
 async def receive(request: Request):
     try:
@@ -115,14 +115,23 @@ async def receive(request: Request):
             if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
                 envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
             elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
-                envio = enviar_mensaje_whatsapp(numero, "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos")
+                envio = enviar_mensaje_whatsapp(
+                    numero,
+                    "📋 Comandos disponibles:\n- 'Hola': saludo\n- 'Info': información del bot\n- 'Menu': ver productos"
+                )
             elif mensaje_lower in ['info', 'informacion', 'información']:
-                envio = enviar_mensaje_whatsapp(numero, "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. Y soy la version ultimtum de tu chael")
+                envio = enviar_mensaje_whatsapp(
+                    numero,
+                    "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. ¡Versión Ultimate del Chacal!"
+                )
             elif mensaje_lower == 'menu':
                 interactive_msg = menu_categorias(numero)
                 envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
             else:
-                envio = enviar_mensaje_whatsapp(numero, f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones.")
+                envio = enviar_mensaje_whatsapp(
+                    numero,
+                    f"✅ Recibí tu mensaje: \"{mensaje}\".\nEscribí 'Ayuda' para ver opciones."
+                )
 
             if envio.get("success"):
                 print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
@@ -131,6 +140,6 @@ async def receive(request: Request):
 
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         return PlainTextResponse("ERROR", status_code=500)
