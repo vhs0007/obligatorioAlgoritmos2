@@ -15,6 +15,51 @@ async def verify(request: Request):
         return PlainTextResponse(challenge)
     return PlainTextResponse("Token inválido", status_code=403)
 
+def paginar(items, pagina=1, por_pagina=5):
+    total = len(items)
+    total_paginas = (total + por_pagina - 1) // por_pagina
+
+    pagina = max(1, min(pagina, total_paginas))
+
+    inicio = (pagina - 1) * por_pagina
+    fin = inicio + por_pagina
+    items_pagina = items[inicio:fin]
+
+    if pagina < total_paginas:
+        items_pagina.append({
+            "id": f"next_{pagina + 1}",
+            "title": "➡️ Siguiente página"
+        })
+    if pagina > 1:
+        items_pagina.insert(0, {
+            "id": f"prev_{pagina - 1}",
+            "title": "⬅️ Página anterior"
+        })
+
+    return {
+        "pagina_actual": pagina,
+        "total_paginas": total_paginas,
+        "items": items_pagina
+    }
+
+
+def menu_categorias(numero, pagina=1):
+    categorias = [
+        {"id": "cat_1", "title": "🍔 Hamburguesas"},
+        {"id": "cat_2", "title": "🍕 Pizzas"},
+        {"id": "cat_3", "title": "🍽 Minutas"},
+        {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
+        {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
+        {"id": "cat_6", "title": "🍰 Postres"},
+        {"id": "cat_7", "title": "🥗 Ensaladas"},
+        {"id": "cat_8", "title": "🍝 Pastas"},
+        {"id": "cat_9", "title": "🥪 Sándwiches"},
+        {"id": "cat_10", "title": "⚡ Comidas rápidas"},
+        {"id": "cat_all", "title": "📋 Ver todas las comidas"}
+    ]
+
+    paginacion = paginar(categorias, pagina)
+
 # --- Menú interactivo ---
 def menu_categorias(numero):
     return {
@@ -23,6 +68,27 @@ def menu_categorias(numero):
         "type": "interactive",
         "interactive": {
             "type": "list",
+            "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEats! 😋"},
+            "body": {
+                "text": f"Seleccioná una categoría para ver nuestras opciones:\n(Página {paginacion['pagina_actual']}/{paginacion['total_paginas']})"
+            },
+            "footer": {"text": "Usá el menú para elegir 👇"},
+            "action": {
+                "button": "Ver categorías",
+                "sections": [
+                    {
+                        "title": "Categorías de comidas",
+                        "rows": paginacion["items"]
+                    }
+                ]
+            }
+        }
+    }
+
+#Cuando se haga el menu de productos se puede reutilizar paginacion
+#Hay que ver como resolver el tomar el producto, se puede hacer un metodo grande usando el webhook o ver otra forma
+
+
             "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEater! 😋"},
             "body": {"text": "Seleccioná una categoría para ver nuestras opciones:"},
             "footer": {"text": "Usá el menú para elegir 👇"},
