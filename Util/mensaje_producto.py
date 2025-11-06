@@ -27,7 +27,7 @@ def lista_productos(numero: str, pagina: int, filtro_carrito: str, order_asc: bo
     pagina_items, total = paginar_productos(pagina, filtro_carrito, order_asc)
 
     rows = [
-        {"id": p["id"], "title": f"{p['nombre']} — ${p['precio']}"}
+        {"id": "add_" + p["id"], "title": f"{p['nombre']} — ${p['precio']}"}
         for p in pagina_items
     ]
     

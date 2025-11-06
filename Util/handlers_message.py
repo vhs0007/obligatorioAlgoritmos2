@@ -100,9 +100,11 @@ def flujo_productos(numero, mensaje, sesion):
         sesion["state"] = "viendo_categorias"
         return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
     if mensaje.startswith("add_"):
+        print(f"LLEGO ACA")
         sesion["esperando_cantidad"] = mensaje.replace("add_", "")
         return enviar_mensaje_whatsapp(numero, "Escribi la cantidad con observacion")
     if sesion.get("esperando_cantidad"):
+        print(f"LLEGO A LA CANTIDAD")
         prod_id = sesion.pop("esperando_cantidad")
         partes = mensaje.split()
         try:
