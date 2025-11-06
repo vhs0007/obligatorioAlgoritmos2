@@ -1,7 +1,7 @@
 from whatsapp_api import enviar_mensaje_whatsapp
 from .Data_prueba import categorias
 from .state import get_session, reset_session
-from .products import build_product_list_message
+from .mensaje_producto import lista_productos
 from .carrito import add_to_cart, detalle_carrito
 
 
@@ -27,7 +27,7 @@ def menu_categorias(numero):
 
 def mostrar_productos(numero):
     sesion = get_session(numero)
-    payload = build_product_list_message(numero, sesion["page"], sesion["filter"], sesion["order_asc"])
+    payload = lista_productos(numero, sesion["page"], sesion["filter"], sesion["order_asc"])
     return enviar_mensaje_whatsapp(numero, payload, usar_template=False)
 
 def mostrar_carrito(numero):
