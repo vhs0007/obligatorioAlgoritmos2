@@ -1,7 +1,6 @@
-
-USUARIOS = {}   
-SESSION = {}  
-CARRITO = {}   
+USUARIOS = {}
+SESSION = {}
+CARRITO = {}
 
 def ensure_user(numero, usu=None):
     if numero not in USUARIOS:
@@ -11,13 +10,19 @@ def ensure_user(numero, usu=None):
 def get_session(numero):
     return SESSION.setdefault(numero, {
         "page": 1,
-        "filter": "cat_all",   
-        "order_asc": True,    
+        "filter": "cat_all",
+        "order_asc": True,
+        "state": "inicio"  
     })
 
 def reset_session(numero):
     if numero in SESSION:
-        SESSION[numero] = {"page": 1, "filter": "cat_all", "order_asc": True}
+        SESSION[numero] = {
+            "page": 1,
+            "filter": "cat_all",
+            "order_asc": True,
+            "state": "inicio"  
+        }
 
 def get_cart(numero):
     return CARRITO.setdefault(numero, {})
