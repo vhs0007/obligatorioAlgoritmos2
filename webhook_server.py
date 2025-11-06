@@ -1,12 +1,13 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 import traceback
-from whatsapp_api import procesar_mensaje_recibido, enviar_mensaje_whatsapp, WHATSAPP_PHONE_NUMBER_ID
+from Util.handlers_message import handle_text, handle_location
+from whatsapp_api import procesar_mensaje_recibido, WHATSAPP_PHONE_NUMBER_ID
 
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
 
-# --- Endpoints básicos ---
+
 @app.get("/")
 async def root():
     return {
@@ -32,80 +33,24 @@ async def verify(request: Request):
     return PlainTextResponse("Token inválido", status_code=403)
 
 
-# --- Función para generar menú interactivo ---
-def menu_categorias(numero):
-    return {
-        "messaging_product": "whatsapp",
-        "to": numero,
-        "type": "interactive",
-        "interactive": {
-            "type": "list",
-            "header": {"type": "text", "text": "🍔 ¡Bienvenido a GordoEats! 😋"},
-            "body": {"text": "Seleccioná una categoría para ver nuestras opciones:"},
-            "footer": {"text": "Usá el menú para elegir 👇"},
-            "action": {
-                "button": "Ver categorías",
-                "sections": [
-                    {
-                        "title": "Categorías de comidas",
-                        "rows": [
-                            {"id": "cat_1", "title": "🍔 Hamburguesas"},
-                            {"id": "cat_2", "title": "🍕 Pizzas"},
-                            {"id": "cat_3", "title": "🍽 Minutas"},
-                            {"id": "cat_4", "title": "🥤 Bebidas sin alcohol"},
-                            {"id": "cat_5", "title": "🍺 Bebidas alcohólicas"},
-                            {"id": "cat_6", "title": "🍰 Postres"},
-                            {"id": "cat_7", "title": "🥗 Ensaladas"},
-                            {"id": "cat_8", "title": "🍝 Pastas"},
-                            {"id": "cat_9", "title": "🥪 Sándwiches"},
-                            {"id": "cat_10", "title": "⚡ Comidas rápidas"},
-                            {"id": "cat_all", "title": "📋 Ver todas las comidas"},
-                        ],
-                    }
-                ],
-            },
-        },
-    }
-
-
-# --- Endpoint principal ---
 @app.post("/webhook")
 async def receive(request: Request):
     try:
         data = await request.json()
         resultado = procesar_mensaje_recibido(data)
 
-        if resultado:
-            numero, mensaje, tipo = resultado
-            mensaje_lower = mensaje.lower().strip()
+        if not resultado:
+            return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-            print(f"📩 Mensaje recibido de {numero}: {mensaje_lower}")
+        numero, mensaje, tipo = resultado
+        print(f"📩 Mensaje recibido ({tipo}) de {numero}: {mensaje}")
 
-            if mensaje_lower in ['hola', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches']:
-                envio = enviar_mensaje_whatsapp(numero, "¡Hola! 👋 Gracias por contactarnos. ¿En qué puedo ayudarte?")
-            elif mensaje_lower in ['help', 'ayuda', 'ayudame']:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos"
-                )
-            elif mensaje_lower in ['info', 'informacion', 'información']:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    "🤖 Soy un bot de WhatsApp desarrollado con FastAPI y Render. ¡Versión ultimátum de tu chaleco 😎!"
-                )
-            elif mensaje_lower == 'menu':
-                interactive_msg = menu_categorias(numero)
-                envio = enviar_mensaje_whatsapp(numero, interactive_msg, usar_template=False)
-            else:
-                envio = enviar_mensaje_whatsapp(
-                    numero,
-                    f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones."
-                )
-
-            if envio.get("success"):
-                print(f"✅ Respuesta enviada. Message ID: {envio.get('message_id')}")
-            else:
-                print(f"⚠️ Error al enviar respuesta: {envio.get('error')}")
+        if tipo in ("text", "interactive"):
+            handle_text(numero, mensaje)
+        elif tipo == "location":
+            handle_location(numero, mensaje)
+        else:
+            handle_text(numero, "Tipo de mensaje no soportado aún.")
 
         return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 

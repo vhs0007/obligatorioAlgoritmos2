@@ -1,12 +1,7 @@
-"""
-Script para verificar los permisos del token de acceso
-"""
-
 import requests
 from whatsapp_api import WHATSAPP_ACCESS_TOKEN, WHATSAPP_API_URL
 
 def verificar_permisos_token():
-    """Verifica qué permisos tiene el token actual."""
     print("="*60)
     print("🔍 Verificando permisos del token de acceso")
     print("="*60)
@@ -15,7 +10,6 @@ def verificar_permisos_token():
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"
     }
     
-    # Verificar información del token
     try:
         url = f"{WHATSAPP_API_URL}/me"
         response = requests.get(url, headers=headers, timeout=10)
@@ -32,7 +26,6 @@ def verificar_permisos_token():
         print(f"\n❌ Error al verificar token: {str(e)}")
         return False
     
-    # Intentar obtener permisos del token
     try:
         url = f"{WHATSAPP_API_URL}/me/permissions"
         response = requests.get(url, headers=headers, timeout=10)
@@ -49,7 +42,6 @@ def verificar_permisos_token():
                 if 'whatsapp' in permiso_str.lower():
                     permisos_whatsapp.append(permiso_str)
             
-            # Verificar permisos necesarios
             print(f"\n🔍 Verificando permisos necesarios para WhatsApp:")
             permisos_necesarios = [
                 "whatsapp_business_messaging",
