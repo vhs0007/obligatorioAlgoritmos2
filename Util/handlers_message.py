@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from whatsapp_api import enviar_mensaje_whatsapp
 from .Data_prueba import categorias
 from .state import get_session, reset_session, clear_cart
@@ -13,7 +10,6 @@ def menu_categorias(numero):
         "title": "Categorías de comidas",
         "rows": [{"id": c["id"], "title": c["nombre"]} for c in categorias],
     }]
-
     return {
         "messaging_product": "whatsapp",
         "to": numero,
@@ -28,16 +24,26 @@ def menu_categorias(numero):
     }
 
 
-def mostrar_productos(numero):
+def mostrar_productos(numero, categoria_id=None):
     sesion = get_session(numero)
-    payload = lista_productos(numero, sesion["page"], sesion["filter"], sesion["order_asc"])
+    if categoria_id:
+        sesion["filter"] = categoria_id
+    payload = lista_productos(numero, sesion.get("page", 1), sesion.get("filter"), sesion.get("order_asc", True))
     return enviar_mensaje_whatsapp(numero, payload)
+
 
 def mostrar_carrito(numero):
     resumen = detalle_carrito(numero)
     if resumen["items_count"] == 0:
         return enviar_mensaje_whatsapp(numero, "🛒 Tu carrito está vacío. Escribí *menu* para ver productos.")
-    cuerpo = resumen["body"] + f"\n\n💵 Total: ${resumen['total']}\n\nOpciones:\n1️⃣ Quitar producto\n2️⃣ Seguir pidiendo\n3️⃣ Confirmar pedido"
+    cuerpo = (
+        resumen["body"]
+        + f"\n\n💵 Total: ${resumen['total']}\n\n"
+          "Opciones:\n"
+          "1 Quitar producto\n"
+          "2 Seguir pidiendo\n"
+          "3 Confirmar pedido"
+    )
     return enviar_mensaje_whatsapp(numero, cuerpo)
 
 
@@ -46,60 +52,100 @@ def confirmar_pedido(numero):
 
 
 def handle_text(numero, mensaje):
-    mensaje_lower = mensaje.lower().strip()
     sesion = get_session(numero)
+    estado = sesion.get("state", "inicio")
+    mensaje = mensaje.lower().strip()
 
-    respuestas = {
-        ("hola", "hi", "hello", "buenos dias", "buenas tardes", "buenas noches"):
-            "¡Hola! 👋 ¿En qué puedo ayudarte?",
-        ("help", "ayuda", "ayudame"):
-            "📋 Comandos:\n- Hola: saludo\n- Info: información del bot\n- Menu: ver productos\n- Carrito: ver tu pedido",
-        ("info", "informacion", "información"):
-            "🤖 Soy el bot de GordoEats, te ayudo a hacer tus pedidos más rápido 🍔",
-    }
+    if estado == "inicio":
+        return flujo_inicio(numero, mensaje, sesion)
+    if estado == "viendo_categorias":
+        return flujo_categorias(numero, mensaje, sesion)
+    if estado == "viendo_productos":
+        return flujo_productos(numero, mensaje, sesion)
+    if estado == "viendo_carrito":
+        return flujo_carrito(numero, mensaje, sesion)
+    if estado == "confirmando":
+        return flujo_confirmacion(numero, mensaje, sesion)
 
-    for claves, respuesta in respuestas.items():
-        if mensaje_lower in claves:
-            return enviar_mensaje_whatsapp(numero, respuesta)
+    reset_session(numero)
+    return enviar_mensaje_whatsapp(numero, "⚠️ Estado inválido. Escribí *menu* para empezar de nuevo.")
 
-    if mensaje_lower == "menu":
-        msg = menu_categorias(numero)
-        return enviar_mensaje_whatsapp(numero, msg)
 
-    if mensaje_lower == "carrito":
+def flujo_inicio(numero, mensaje, sesion):
+    if mensaje in ("menu", "hola", "hi", "buenas", "buenos dias"):
+        sesion["state"] = "viendo_categorias"
+        return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+    if mensaje == "carrito":
+        sesion["state"] = "viendo_carrito"
         return mostrar_carrito(numero)
+    return enviar_mensaje_whatsapp(numero, "👋 Escribí *menu* para ver productos o *carrito* para ver tu pedido.")
 
-    if mensaje_lower in ("salir", "cancelar", "cancel"):
+
+def flujo_categorias(numero, mensaje, sesion):
+    if mensaje.startswith("cat_"):
+        sesion["filter"] = mensaje
+        sesion["state"] = "viendo_productos"
+        return mostrar_productos(numero, mensaje)
+    if mensaje == "salir":
         reset_session(numero)
-        clear_cart(numero)
-        return enviar_mensaje_whatsapp(numero, "🧹 Se canceló el proceso. Volvés al inicio.")
+        return enviar_mensaje_whatsapp(numero, "👋 Cancelado. Escribí *menu* para empezar de nuevo.")
+    return enviar_mensaje_whatsapp(numero, "⚠️ Elegí una categoría del menú.")
 
+
+def flujo_productos(numero, mensaje, sesion):
+    if mensaje == "carrito":
+        sesion["state"] = "viendo_carrito"
+        return mostrar_carrito(numero)
+    if mensaje == "menu":
+        sesion["state"] = "viendo_categorias"
+        return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+    if mensaje.startswith("add_"):
+        sesion["esperando_cantidad"] = mensaje.replace("add_", "")
+        return enviar_mensaje_whatsapp(numero, "Escribi la cantidad con observacion")
     if sesion.get("esperando_cantidad"):
         prod_id = sesion.pop("esperando_cantidad")
+        partes = mensaje.split()
         try:
-            partes = mensaje.split()
             cantidad = int(partes[0])
             if cantidad <= 0:
                 raise ValueError
-        except:
-            return enviar_mensaje_whatsapp(numero, "⚠️ Cantidad inválida. Escribí un número (ej: 2)")
-
-        obs = " ".join(partes[1:]) if len(partes) > 1 else ""
-        ok, err = add_to_cart(numero, prod_id, cantidad, obs)
+        except ValueError:
+            return enviar_mensaje_whatsapp(numero, "⚠️ Cantidad inválida. Escribí un número válido (ej: 2).")
+        aclaracion = " ".join(partes[1:]) if len(partes) > 1 else ""
+        ok, err = add_to_cart(numero, prod_id, cantidad, aclaracion)
         if not ok:
-            return enviar_mensaje_whatsapp(numero, f"❌ Error: {err}")
-        return enviar_mensaje_whatsapp(numero, f"✅ Agregados {cantidad} al carrito. Escribí *carrito* para ver tu pedido.")
+            return enviar_mensaje_whatsapp(numero, f"❌ Error al agregar: {err}")
+        return enviar_mensaje_whatsapp(numero, f"✅ {cantidad} agregado(s) al carrito.\nEscribí *carrito* para ver tu pedido o *menu* para volver.")
+    return enviar_mensaje_whatsapp(numero, "🍔 Escribí *carrito* para ver tu pedido o *menu* para volver al inicio.")
 
-    return enviar_mensaje_whatsapp(
-        numero,
-        f"✅ Recibí tu mensaje: \"{mensaje}\". Escribí 'Ayuda' para ver opciones."
-    )
+
+def flujo_carrito(numero, mensaje, sesion):
+    if mensaje in ("2", "seguir", "seguir pidiendo"):
+        sesion["state"] = "viendo_categorias"
+        return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+    if mensaje in ("3", "confirmar"):
+        sesion["state"] = "confirmando"
+        return confirmar_pedido(numero)
+    if mensaje in ("1", "quitar", "eliminar"):
+        return enviar_mensaje_whatsapp(numero, "✏️ Escribí el nombre del producto a quitar (a implementar).")
+    if mensaje in ("salir", "cancelar"):
+        reset_session(numero)
+        clear_cart(numero)
+        return enviar_mensaje_whatsapp(numero, "🧹 Pedido cancelado. Escribí *menu* para comenzar de nuevo.")
+    return enviar_mensaje_whatsapp(numero, "📋 Escribí 1 para quitar, 2 para seguir pidiendo o 3 para confirmar.")
+
+
+def flujo_confirmacion(numero, mensaje, sesion):
+    if mensaje in ("cancelar", "salir"):
+        reset_session(numero)
+        return enviar_mensaje_whatsapp(numero, "❌ Pedido cancelado.")
+    return enviar_mensaje_whatsapp(numero, "📍 Enviá tu ubicación para calcular el envío.")
+
 
 def handle_location(numero, contenido):
     try:
         lat, lon = contenido.split(",")
         msg = f"📍 Recibí tu ubicación:\nLatitud: {lat}\nLongitud: {lon}"
         return enviar_mensaje_whatsapp(numero, msg)
-    except Exception as e:
-        print(f"⚠️ Error al procesar ubicación: {e}")
+    except Exception:
         return enviar_mensaje_whatsapp(numero, "⚠️ No se pudo procesar la ubicación correctamente.")
