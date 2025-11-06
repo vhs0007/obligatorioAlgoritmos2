@@ -1,8 +1,8 @@
 from whatsapp_api import enviar_mensaje_whatsapp
 from .Data_prueba import categorias
-from state import get_session, reset_session
-from products import build_product_list_message
-from carrito import add_to_cart, detalle_carrito
+from .state import get_session, reset_session
+from .products import build_product_list_message
+from .carrito import add_to_cart, detalle_carrito
 
 
 def menu_categorias(numero):
