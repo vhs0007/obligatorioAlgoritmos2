@@ -1,4 +1,4 @@
-from Data_prueba import productos
+from .Data_prueba import productos
 PAGINAS = 5  
 
 
