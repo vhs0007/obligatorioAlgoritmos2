@@ -3,7 +3,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from whatsapp_api import enviar_mensaje_whatsapp
 from .Data_prueba import categorias
-from .state import get_session, reset_session
+from .state import get_session, reset_session, clear_cart
 from .mensaje_producto import lista_productos
 from .carrito import add_to_cart, detalle_carrito
 
@@ -31,7 +31,7 @@ def menu_categorias(numero):
 def mostrar_productos(numero):
     sesion = get_session(numero)
     payload = lista_productos(numero, sesion["page"], sesion["filter"], sesion["order_asc"])
-    return enviar_mensaje_whatsapp(numero, payload, usar_template=False)
+    return enviar_mensaje_whatsapp(numero, payload)
 
 def mostrar_carrito(numero):
     resumen = detalle_carrito(numero)
@@ -64,13 +64,12 @@ def handle_text(numero, mensaje):
 
     if mensaje_lower == "menu":
         msg = menu_categorias(numero)
-        return enviar_mensaje_whatsapp(numero, msg, usar_template=False)
+        return enviar_mensaje_whatsapp(numero, msg)
 
     if mensaje_lower == "carrito":
         return mostrar_carrito(numero)
 
     if mensaje_lower in ("salir", "cancelar", "cancel"):
-        from state import clear_cart
         reset_session(numero)
         clear_cart(numero)
         return enviar_mensaje_whatsapp(numero, "🧹 Se canceló el proceso. Volvés al inicio.")
