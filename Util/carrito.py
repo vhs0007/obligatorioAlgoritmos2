@@ -1,4 +1,4 @@
-from state import get_cart
+from .state import get_cart
 from .Data_prueba import productos
 
 def add_to_cart(numero, product_id, cantidad, observaciones=""):

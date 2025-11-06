@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from whatsapp_api import enviar_mensaje_whatsapp
 from .Data_prueba import categorias
 from .state import get_session, reset_session
