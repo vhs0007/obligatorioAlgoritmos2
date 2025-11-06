@@ -40,7 +40,6 @@ def enviar_mensaje_whatsapp(numero, mensaje):
         res_json = response.json()
         return {
             "success": response.status_code == 200,
-            "message_id": res_json.get("messages", [{}])[0].get("id"),
             "error": res_json.get("error"),
         }
     except Exception as e:
