@@ -9,7 +9,7 @@ categorias = [
     {"id": "cat_7", "nombre": "🥗 Ensaladas"},
     {"id": "cat_8", "nombre": "🍝 Pastas"},
     {"id": "cat_9", "nombre": "🥪 Sándwiches"},
-    {"id": "cat_10", "nombre": "⚡ Comidas rápidas"},
+    {"id": "cat_all", "nombre": "Todos los productos"},
 ]
 
 productos = [
