@@ -1,7 +1,5 @@
-# utils/cart.py
 from state import get_cart
-from utils.Data_prueba import productos
-
+from Data_prueba import productos
 
 def add_to_cart(numero, product_id, cantidad, observaciones=""):
     cart = get_cart(numero)
