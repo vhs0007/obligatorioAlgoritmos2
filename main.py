@@ -22,5 +22,5 @@ bot = crear_bot_instancia()
 
 
 if __name__ == "__main__":
-    print("✅ Bot de GordoEats iniciado correctamente")
-    print(f"📊 Estado del bot: {bot}")
+    print("Bot iniciado correctamente")
+    print(f"Estado del bot {bot}")
