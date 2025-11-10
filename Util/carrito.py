@@ -1,23 +1,29 @@
 from .state import get_cart
-from .Data_prueba import productos
+from .database import get_db_session, Producto
 
 def add_to_cart(numero, product_id, cantidad, observaciones=""):
     cart = get_cart(numero)
-    producto = next((p for p in productos if p["id"] == product_id), None)
-    if not producto:
-        return False, "Producto no encontrado"
-
-    item = cart.get(
-        product_id,
-        {"cantidad": 0, "nombre": producto["nombre"], "precio": producto["precio"], "obs": ""},
-    )
-
-    item["cantidad"] += cantidad
-    if observaciones:
-        item["obs"] = observaciones
-
-    cart[product_id] = item
-    return True, None
+    
+    # Buscar producto en la base de datos
+    db = get_db_session()
+    try:
+        producto = db.query(Producto).filter(Producto.idproducto == int(product_id)).first()
+        if not producto:
+            return False, "Producto no encontrado"
+        
+        item = cart.get(
+            product_id,
+            {"cantidad": 0, "nombre": producto.nombre, "precio": float(producto.precio), "obs": ""},
+        )
+        
+        item["cantidad"] += cantidad
+        if observaciones:
+            item["obs"] = observaciones
+        
+        cart[product_id] = item
+        return True, None
+    finally:
+        db.close()
 
 
 def quitar_producto(numero, product_id):
