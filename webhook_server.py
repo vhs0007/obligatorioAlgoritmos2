@@ -4,6 +4,7 @@ import traceback
 from Models.chat import Chat
 from Services.PedidoService import PedidosService
 from Services.ProductoService import ProductosService
+from Services.ClienteService import ClienteService
 from Util.database import get_db_session
 from whatsapp_api import procesar_mensaje_recibido, WHATSAPP_PHONE_NUMBER_ID
 
@@ -45,16 +46,27 @@ async def receive(request: Request):
         if not resultado:
             return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
-        numero, mensaje, tipo = resultado
+        numero, mensaje, tipo, nombre_whatsapp = resultado
         print(f"📩 Mensaje recibido ({tipo}) de {numero}: {mensaje}")
+        if nombre_whatsapp:
+            print(f"👤 Nombre en WhatsApp: {nombre_whatsapp}")
 
-        # Inicializar servicios y crear instancia de Chat
+        # Inicializar servicios
         db_session = get_db_session()
+        cliente_service = ClienteService(db_session)
         pedido_service = PedidosService(db_session)
         producto_service = ProductosService()
+        
+        # 🆕 Crear o buscar cliente automáticamente
+        cliente = cliente_service.obtener_o_crear_cliente(
+            telefono=numero,
+            nombre=nombre_whatsapp
+        )
+        
+        # Crear instancia de Chat
         chat = Chat(
             id_chat=f"chat_{numero}",
-            id_cliente=numero,
+            id_cliente=str(cliente.idcliente),  # Usar ID del cliente de la BD
             pedido_service=pedido_service,
             producto_service=producto_service
         )

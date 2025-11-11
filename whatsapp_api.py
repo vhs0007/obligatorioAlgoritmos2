@@ -69,8 +69,15 @@ def procesar_mensaje_recibido(data):
             print("🛑 Ignorando mensaje del propio bot.")
             return None
 
+        # Extraer nombre del perfil de WhatsApp
+        contacts = value.get("contacts", [])
+        nombre_whatsapp = None
+        if contacts:
+            profile = contacts[0].get("profile", {})
+            nombre_whatsapp = profile.get("name")
+        
         tipo, contenido = get_type(message)
-        return numero, contenido, tipo
+        return numero, contenido, tipo, nombre_whatsapp
 
     except Exception as e:
         print(f"⚠️ Error al procesar mensaje recibido: {e}")
