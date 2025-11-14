@@ -15,7 +15,7 @@ VERIFY_TOKEN = "Chacalitas2025"
 @app.get("/")
 async def root():
     return {
-        "message": "✅ WhatsApp Webhook Server funcionando",
+        "message": "WhatsApp Webhook Server funcionando",
         "phone_number_id": WHATSAPP_PHONE_NUMBER_ID,
         "endpoints": {"webhook": "/webhook", "health": "/health"},
     }
@@ -47,26 +47,24 @@ async def receive(request: Request):
             return PlainTextResponse("EVENT_RECEIVED", status_code=200)
 
         numero, mensaje, tipo, nombre_whatsapp = resultado
-        print(f"📩 Mensaje recibido ({tipo}) de {numero}: {mensaje}")
+        print(f"Mensaje recibido ({tipo}) de {numero}: {mensaje}")
         if nombre_whatsapp:
-            print(f"👤 Nombre en WhatsApp: {nombre_whatsapp}")
+            print(f"Nombre en WhatsApp: {nombre_whatsapp}")
 
-        # Inicializar servicios
         db_session = get_db_session()
         cliente_service = ClienteService(db_session)
         pedido_service = PedidosService(db_session)
-        producto_service = ProductosService()
+        producto_service = ProductosService(db_session)
         
-        # 🆕 Crear o buscar cliente automáticamente
         cliente = cliente_service.obtener_o_crear_cliente(
             telefono=numero,
             nombre=nombre_whatsapp
         )
         
-        # Crear instancia de Chat
         chat = Chat(
             id_chat=f"chat_{numero}",
-            id_cliente=str(cliente.idcliente),  # Usar ID del cliente de la BD
+            id_cliente=str(cliente.idcliente),
+            id_repartidor=None,
             pedido_service=pedido_service,
             producto_service=producto_service
         )

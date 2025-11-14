@@ -13,7 +13,7 @@ def get_type(message):
         elif t == "list_reply":
             contenido = interactive["list_reply"].get("id", "")
         else:
-            print("⚠️ Tipo interactivo no reconocido")
+            print("Tipo interactivo no reconocido")
 
     elif tipo == "location":
         loc = message.get("location", {})
@@ -25,6 +25,6 @@ def get_type(message):
         contenido = message.get("audio", {}).get("id", "")
 
     else:
-        print(f"⚠️ Tipo de mensaje no manejado: {tipo}")
+        print(f"Tipo de mensaje no manejado: {tipo}")
 
     return tipo, contenido

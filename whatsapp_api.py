@@ -33,8 +33,8 @@ def enviar_mensaje_whatsapp(numero, mensaje):
         data = mensaje  
 
     response = requests.post(url, headers=headers, json=data)
-    print(f"➡️ Enviado a {numero}")
-    print("📨 Estado:", response.status_code)
+    print("Enviado a", numero)
+    print("Estado:", response.status_code)
 
     try:
         res_json = response.json()
@@ -43,7 +43,7 @@ def enviar_mensaje_whatsapp(numero, mensaje):
             "error": res_json.get("error"),
         }
     except Exception as e:
-        print("⚠️ Error al interpretar la respuesta:", e)
+        print("Error al interpretar la respuesta:", e)
         return {"success": False, "error": str(e)}
 
 
@@ -65,10 +65,6 @@ def procesar_mensaje_recibido(data):
         message = messages[0]
         numero = message.get("from")
 
-        if numero == WHATSAPP_PHONE_NUMBER_ID:
-            print("🛑 Ignorando mensaje del propio bot.")
-            return None
-
         # Extraer nombre del perfil de WhatsApp
         contacts = value.get("contacts", [])
         nombre_whatsapp = None
@@ -80,5 +76,5 @@ def procesar_mensaje_recibido(data):
         return numero, contenido, tipo, nombre_whatsapp
 
     except Exception as e:
-        print(f"⚠️ Error al procesar mensaje recibido: {e}")
+        print(f"Error al procesar mensaje recibido: {e}")
         return None

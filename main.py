@@ -8,8 +8,8 @@ def crear_bot_instancia():
     db_session = get_db_session()
     
     pedido_service = PedidosService(db_session)
-    producto_service = ProductosService()
-    
+    producto_service = ProductosService(db_session)
+    cliente_service = ClienteService(db_session)
     bot = Chat(
         pedido_service=pedido_service,
         producto_service=producto_service

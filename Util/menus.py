@@ -7,16 +7,13 @@ def obtener_categorias():
     """Obtiene las categorías desde la base de datos."""
     db = get_db_session()
     try:
-        # Obtener todas las categorías de la tabla Categoria
         categorias_db = db.query(Categoria).all()
         
-        # Convertir a lista con formato esperado
         categorias = [
             {"id": f"cat_{cat.id_categoria}", "nombre": cat.nombre}
             for cat in categorias_db
         ]
         
-        # Agregar opción "Todas" al inicio
         categorias.insert(0, {"id": "cat_all", "nombre": "Todas las categorías"})
         
         return categorias

@@ -48,7 +48,6 @@ class Repartidor(SQLModel, table=True):
     __tablename__ = "repartidor"
     idrepartidor: int = Field(autoincrement=True, primary_key=True)
     nombre: str
-    apellido: str
     telefono: str
     cantidadkmrecorridos: float
     zonaasignada: str
@@ -69,7 +68,6 @@ class Cliente(SQLModel, table=True):
     __tablename__ = "cliente"
     idcliente: int = Field(autoincrement=True, primary_key=True)
     nombre: str
-    apellido: str
     telefono: str
 
 class Chat(SQLModel, table=True):

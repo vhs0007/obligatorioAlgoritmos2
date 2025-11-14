@@ -5,24 +5,13 @@ class ClienteService:
         self.db = db_session or get_db_session()
 
     def obtener_o_crear_cliente(self, telefono: str, nombre: str = None) -> Cliente:
-        """
-        Busca un cliente por teléfono, si no existe lo crea con el nombre de WhatsApp.
-        
-        Args:
-            telefono: Número de teléfono del cliente
-            nombre: Nombre del perfil de WhatsApp (opcional)
-        
-        Returns:
-            Cliente: Instancia del cliente
-        """
-        # Buscar cliente existente por teléfono
+
         cliente = self.db.query(Cliente).filter(Cliente.telefono == telefono).first()
         
         if cliente:
-            print(f"✅ Cliente encontrado: {cliente.nombre} ({cliente.telefono})")
+            print(f"Cliente: {cliente.nombre} ({cliente.telefono})")
             return cliente
         
-        # Si no existe, crear nuevo cliente
         nombre_cliente = nombre or "Cliente WhatsApp"
         nuevo_cliente = Cliente(
             nombre=nombre_cliente,
@@ -33,7 +22,7 @@ class ClienteService:
         self.db.commit()
         self.db.refresh(nuevo_cliente)
         
-        print(f"🆕 Nuevo cliente creado: {nuevo_cliente.nombre} ({nuevo_cliente.telefono})")
+        print(f"Cliente creado: {nuevo_cliente.nombre} ({nuevo_cliente.telefono})")
         return nuevo_cliente
     
     def obtener_cliente_por_telefono(self, telefono: str) -> Cliente:
