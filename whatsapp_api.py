@@ -47,6 +47,92 @@ def enviar_mensaje_whatsapp(numero, mensaje):
         return {"success": False, "error": str(e)}
 
 
+def enviar_imagen_whatsapp(numero, ruta_imagen, caption=""):
+    """
+    Envía una imagen por WhatsApp.
+    
+    Args:
+        numero: Número de teléfono del destinatario
+        ruta_imagen: Ruta local al archivo de imagen
+        caption: Texto opcional que acompaña la imagen
+    
+    Returns:
+        dict con 'success' y opcionalmente 'error'
+    """
+    url = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    
+    # Primero subir la imagen a WhatsApp
+    media_url = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/media"
+    
+    try:
+        # Leer la imagen
+        with open(ruta_imagen, 'rb') as img_file:
+            files = {
+                'file': (os.path.basename(ruta_imagen), img_file, 'image/png'),
+                'messaging_product': (None, 'whatsapp'),
+            }
+            upload_headers = {
+                "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+            }
+            
+            # Subir imagen
+            print(f"📤 Subiendo imagen: {ruta_imagen}")
+            upload_response = requests.post(media_url, headers=upload_headers, files=files)
+            
+            if upload_response.status_code != 200:
+                print(f"❌ Error subiendo imagen: {upload_response.status_code}")
+                print(f"   Respuesta: {upload_response.text}")
+                return {"success": False, "error": f"Error al subir imagen: {upload_response.text}"}
+            
+            media_id = upload_response.json().get("id")
+            print(f"✅ Imagen subida. Media ID: {media_id}")
+        
+        # Enviar mensaje con la imagen
+        data = {
+            "messaging_product": "whatsapp",
+            "to": numero,
+            "type": "image",
+            "image": {
+                "id": media_id
+            }
+        }
+        
+        if caption:
+            data["image"]["caption"] = caption
+        
+        response = requests.post(url, headers=headers, json=data)
+        print(f"➡️ Enviando imagen a {numero}")
+        print("📨 Estado:", response.status_code)
+        
+        try:
+            res_json = response.json()
+            if response.status_code == 200:
+                print("✅ Imagen enviada exitosamente")
+                return {
+                    "success": True,
+                    "message_id": res_json.get("messages", [{}])[0].get("id")
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": res_json.get("error", "Error desconocido")
+                }
+        except Exception as e:
+            print("⚠️ Error al interpretar la respuesta:", e)
+            return {"success": False, "error": str(e)}
+            
+    except FileNotFoundError:
+        print(f"❌ Archivo no encontrado: {ruta_imagen}")
+        return {"success": False, "error": f"Archivo no encontrado: {ruta_imagen}"}
+    except Exception as e:
+        print(f"❌ Error enviando imagen: {e}")
+        return {"success": False, "error": str(e)}
+
+
 def procesar_mensaje_recibido(data):
     try:
         if data.get("object") != "whatsapp_business_account":

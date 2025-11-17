@@ -12,15 +12,23 @@ from Util.estado import clear_cart, get_estado, reset_estado, get_waiting_for, s
 
 
 class Chat:
-    def __init__(self, id_chat=None, id_cliente=None, id_repartidor=None, pedido_service=None, producto_service=None):
+    def __init__(self, id_chat=None, id_cliente=None, id_repartidor=None, pedido_service=None, producto_service=None, chat_service=None):
         self.id_chat = id_chat
         self.id_cliente = id_cliente
         self.id_repartidor = id_repartidor
         self.pedido_service = pedido_service
         self.producto_service = producto_service
         
-        db_session = get_db_session()
-        self.chat_service = ChatService(db_session)
+        # ✅ FIXED: Usar el chat_service pasado en lugar de crear una nueva sesión
+        # Si no se pasa, crear uno temporal (solo para testing)
+        if chat_service:
+            self.chat_service = chat_service
+            self._owns_chat_service = False
+        else:
+            # ⚠️ Solo para testing - crea sesión que no se cierra
+            db_session = get_db_session()
+            self.chat_service = ChatService(db_session)
+            self._owns_chat_service = True
         
         self.conversation_data: Dict[str, Any] = {}
         

@@ -122,6 +122,7 @@ async def verify(request: Request):
 
 @app.post("/webhook")
 async def receive(request: Request):
+    db_session = None
     try:
         data = await request.json()
         resultado = procesar_mensaje_recibido(data)
@@ -132,37 +133,51 @@ async def receive(request: Request):
         numero, mensaje, tipo = resultado
         print(f"Mensaje recibido ({tipo}) de {numero}: {mensaje}")
 
+        # Crear sesión de DB
         db_session = get_db_session()
-        chat_service = ChatService(db_session)
-        pedido_service = PedidosService(db_session)
-        producto_service = ProductosService()
         
-        id_cliente = ClienteService.obtener_o_crear_cliente("", "", numero)
-        
-        chat_bd = chat_service.obtener_o_crear_chat(id_cliente, numero)
-        id_chat = chat_bd.id_chat
-        
-        if tipo in ("text", "interactive"):
-            chat_service.registrar_mensaje(id_chat, mensaje, es_cliente=True)
-        elif tipo == "location":
-            chat_service.registrar_mensaje(id_chat, f"Ubicación: {mensaje}", es_cliente=True)
-        
-        chat = Chat(
-            id_chat=id_chat,
-            id_cliente=id_cliente,
-            pedido_service=pedido_service,
-            producto_service=producto_service
-        )
+        try:
+            chat_service = ChatService(db_session)
+            pedido_service = PedidosService(db_session)
+            producto_service = ProductosService()
+            
+            id_cliente = ClienteService.obtener_o_crear_cliente("", "", numero)
+            
+            chat_bd = chat_service.obtener_o_crear_chat(id_cliente, numero)
+            id_chat = chat_bd.id_chat
+            
+            if tipo in ("text", "interactive"):
+                chat_service.registrar_mensaje(id_chat, mensaje, es_cliente=True)
+            elif tipo == "location":
+                chat_service.registrar_mensaje(id_chat, f"Ubicación: {mensaje}", es_cliente=True)
+            
+            chat = Chat(
+                id_chat=id_chat,
+                id_cliente=id_cliente,
+                pedido_service=pedido_service,
+                producto_service=producto_service,
+                chat_service=chat_service  # ✅ Reusar la misma sesión
+            )
 
-        if tipo in ("text", "interactive"):
-            chat.handle_text(numero, mensaje)
-        elif tipo == "location":
-            chat.handle_location(numero, mensaje)
-        else:
-            chat.handle_text(numero, "Tipo de mensaje no soportado aún.")
+            if tipo in ("text", "interactive"):
+                chat.handle_text(numero, mensaje)
+            elif tipo == "location":
+                chat.handle_location(numero, mensaje)
+            else:
+                chat.handle_text(numero, "Tipo de mensaje no soportado aún.")
 
-        return PlainTextResponse("EVENT_RECEIVED", status_code=200)
+            return PlainTextResponse("EVENT_RECEIVED", status_code=200)
+        
+        finally:
+            # ✅ IMPORTANTE: Cerrar la sesión siempre
+            if db_session:
+                db_session.close()
+                print("🔒 Sesión de DB cerrada")
 
     except Exception:
         traceback.print_exc()
+        # Cerrar sesión en caso de error también
+        if db_session:
+            db_session.close()
+            print("🔒 Sesión de DB cerrada (después de error)")
         return PlainTextResponse("ERROR", status_code=500)

@@ -5,6 +5,11 @@ from Models.chat import Chat
 
 
 def crear_bot_instancia():
+    """
+    ⚠️ ADVERTENCIA: Esta función crea una sesión de DB que nunca se cierra.
+    Solo usar para testing rápido. En producción, usar webhook_server.py
+    que maneja las sesiones correctamente.
+    """
     db_session = get_db_session()
     
     pedido_service = PedidosService(db_session)
@@ -18,6 +23,7 @@ def crear_bot_instancia():
     return bot  
 
 
+# ⚠️ Esta sesión permanece abierta - solo para testing
 bot = crear_bot_instancia()
 
 
