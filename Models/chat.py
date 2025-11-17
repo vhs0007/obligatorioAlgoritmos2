@@ -7,6 +7,7 @@ from Services.ClienteService import ClienteService
 from Util.database import get_db_session
 from whatsapp_api import enviar_mensaje_whatsapp
 from Util.menus import menu_categorias, mostrar_productos
+from Util.product_util import lista_productos
 from Util.estado import clear_cart, get_estado, reset_estado
 
 
@@ -155,7 +156,8 @@ class Chat:
             self.set_waiting_for(numero, self.flujo_categorias)
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
-            mensaje_menu = menu_categorias(numero)
+            estado["cat_page"] = 1  # Iniciar en página 1
+            mensaje_menu = menu_categorias(numero, 1)
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
@@ -170,10 +172,33 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, respuesta)
 
     def flujo_categorias(self, numero, mensaje):
+        estado = get_estado(numero)
+        pagina_actual = estado.get("cat_page", 1)
+        
+        # Manejar navegación de categorías
+        if mensaje == "cat_next":
+            estado["cat_page"] = pagina_actual + 1
+            mensaje_menu = menu_categorias(numero, estado["cat_page"])
+            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, mensaje_menu)
+        
+        if mensaje == "cat_prev":
+            estado["cat_page"] = max(1, pagina_actual - 1)
+            mensaje_menu = menu_categorias(numero, estado["cat_page"])
+            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, mensaje_menu)
+        
+        if mensaje == "cat_home":
+            estado["cat_page"] = 1
+            mensaje_menu = menu_categorias(numero, 1)
+            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, mensaje_menu)
+        
+        # Seleccionar categoría
         if mensaje.startswith("cat_"):
             self.set_waiting_for(numero, self.flujo_productos)
-            estado = get_estado(numero)
             estado["state"] = "viendo_productos"
+            estado["page"] = 1  # Resetear página de productos
             return mostrar_productos(numero, mensaje)
 
         if mensaje == "salir":
@@ -187,6 +212,46 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, respuesta)
 
     def flujo_productos(self, numero, mensaje):
+        estado = get_estado(numero)
+        pagina_actual = estado.get("page", 1)
+        filtro_actual = estado.get("filter", "cat_all")
+        orden_asc = estado.get("order_asc", True)
+        
+        # Manejar navegación de productos
+        if mensaje == "prod_next":
+            estado["page"] = pagina_actual + 1
+            payload = lista_productos(numero, estado["page"], filtro_actual, orden_asc)
+            self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, payload)
+        
+        if mensaje == "prod_prev":
+            estado["page"] = max(1, pagina_actual - 1)
+            payload = lista_productos(numero, estado["page"], filtro_actual, orden_asc)
+            self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, payload)
+        
+        if mensaje == "prod_home":
+            estado["page"] = 1
+            payload = lista_productos(numero, 1, filtro_actual, orden_asc)
+            self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, payload)
+        
+        if mensaje == "prod_filter":
+            # Volver a categorías para filtrar
+            self.set_waiting_for(numero, self.flujo_categorias)
+            estado["state"] = "viendo_categorias"
+            mensaje_menu = menu_categorias(numero, estado.get("cat_page", 1))
+            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, mensaje_menu)
+        
+        if mensaje == "prod_order":
+            # Cambiar orden
+            estado["order_asc"] = not orden_asc
+            estado["page"] = 1  # Resetear a primera página
+            payload = lista_productos(numero, 1, filtro_actual, estado["order_asc"])
+            self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, payload)
+        
         if mensaje == "carrito":
             self.set_waiting_for(numero, self.flujo_carrito)
             res = self.pedido_service.mostrar_carrito_pedidos(numero)
@@ -194,9 +259,8 @@ class Chat:
 
         if mensaje == "menu":
             self.set_waiting_for(numero, self.flujo_categorias)
-            estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
-            return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+            return enviar_mensaje_whatsapp(numero, menu_categorias(numero, estado.get("cat_page", 1)))
 
         if mensaje.startswith("add_"):
             prod_id = mensaje.replace("add_", "")
@@ -233,7 +297,8 @@ class Chat:
             self.set_waiting_for(numero, self.flujo_categorias)
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
-            mensaje_menu = menu_categorias(numero)
+            estado["cat_page"] = estado.get("cat_page", 1)  # Mantener página actual o iniciar en 1
+            mensaje_menu = menu_categorias(numero, estado["cat_page"])
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 

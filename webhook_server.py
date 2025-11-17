@@ -9,6 +9,7 @@ from Services.ClienteService import ClienteService
 from Util.database import get_db_session, init_db, engine
 from sqlmodel import text
 from whatsapp_api import procesar_mensaje_recibido, WHATSAPP_PHONE_NUMBER_ID
+from seed_database import main as seed_main
 
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
@@ -33,6 +34,14 @@ async def startup_event():
             print("🔄 Tablas no encontradas. Inicializando base de datos...")
             init_db()
             print("✅ Tablas creadas correctamente")
+            
+            # Ejecutar seeding automáticamente después de crear las tablas
+            print("🌱 Ejecutando seeding de datos iniciales...")
+            try:
+                seed_main()
+            except Exception as e:
+                print(f"⚠️ Error en seeding automático: {e}")
+                print("💡 Puedes ejecutar el seeding manualmente visitando /seed-db")
         else:
             print("✅ Base de datos ya inicializada")
     except Exception as e:
@@ -48,7 +57,8 @@ async def root():
         "endpoints": {
             "webhook": "/webhook",
             "health": "/health",
-            "init_db": "/init-db"
+            "init_db": "/init-db",
+            "seed_db": "/seed-db"
         },
     }
 
@@ -75,6 +85,27 @@ async def init_database():
         return {
             "status": "error",
             "message": f"❌ Error al inicializar: {str(e)}"
+        }
+
+
+@app.get("/seed-db")
+async def seed_database():
+    """Endpoint para poblar la base de datos con datos de prueba (categorías, productos, repartidores)."""
+    try:
+        seed_main()
+        return {
+            "status": "success",
+            "message": "✅ Seeding completado exitosamente",
+            "datos": {
+                "categorias": 8,
+                "productos": "32+ productos",
+                "repartidores": 6
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"❌ Error en seeding: {str(e)}"
         }
 
 
