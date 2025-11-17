@@ -69,8 +69,7 @@ class Chat:
         self.reset_session(numero)
         self.reset_conversation(numero)
     
-    def set_waiting_for(self, numero, func_name: str, **context_data):
-        """Establece la función esperada usando el nombre de la función."""
+    def set_waiting_for(self, numero, func_name: str, context_data=None):
         set_waiting_for(numero, func_name, context_data)
         print(f"{numero}: Esperando respuesta para: {func_name}")
     
@@ -92,7 +91,6 @@ class Chat:
         return get_waiting_for(numero) is not None
     
     def get_waiting_function(self, numero) -> Optional[Callable]:
-        """Obtiene la función esperada y la retorna como callable."""
         func_name = get_waiting_for(numero)
         if func_name and func_name in self.function_map:
             return self.function_map[func_name]
@@ -182,7 +180,6 @@ class Chat:
         estado = get_estado(numero)
         pagina_actual = estado.get("cat_page", 1)
         
-        # Manejar navegación de categorías
         if mensaje == "cat_next":
             estado["cat_page"] = pagina_actual + 1
             mensaje_menu = menu_categorias(numero, estado["cat_page"])
@@ -201,11 +198,10 @@ class Chat:
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
         
-        # Seleccionar categoría
         if mensaje.startswith("cat_"):
             self.set_waiting_for(numero, "flujo_productos")
             estado["state"] = "viendo_productos"
-            estado["page"] = 1  # Resetear página de productos
+            estado["page"] = 1
             return mostrar_productos(numero, mensaje)
 
         if mensaje == "salir":
@@ -224,7 +220,6 @@ class Chat:
         filtro_actual = estado.get("filter", "cat_all")
         orden_asc = estado.get("order_asc", True)
         
-        # Manejar navegación de productos
         if mensaje == "prod_next":
             estado["page"] = pagina_actual + 1
             payload = lista_productos(numero, estado["page"], filtro_actual, orden_asc)
@@ -244,7 +239,6 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, payload)
         
         if mensaje == "prod_filter":
-            # Volver a categorías para filtrar
             self.set_waiting_for(numero, "flujo_categorias")
             estado["state"] = "viendo_categorias"
             mensaje_menu = menu_categorias(numero, estado.get("cat_page", 1))
@@ -252,9 +246,8 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
         
         if mensaje == "prod_order":
-            # Cambiar orden
             estado["order_asc"] = not orden_asc
-            estado["page"] = 1  # Resetear a primera página
+            estado["page"] = 1
             payload = lista_productos(numero, 1, filtro_actual, estado["order_asc"])
             self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, payload)
@@ -271,7 +264,6 @@ class Chat:
 
         if mensaje.startswith("add_"):
             prod_id = mensaje.replace("add_", "")
-            # Guardar prod_id en contexto para flujo_cantidad
             estado_global = get_estado(numero)
             estado_global["context_data"] = {"prod_id": prod_id}
             self.set_waiting_for(numero, "flujo_cantidad", {"prod_id": prod_id})
@@ -280,13 +272,11 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, "📋 Escribí *carrito* para ver tu pedido o *menu* para volver al inicio.")
 
     def flujo_cantidad(self, numero, mensaje):
-        # Obtener prod_id del contexto
         estado_global = get_estado(numero)
         context_data = estado_global.get("context_data", {})
         prod_id = context_data.get("prod_id")
         
         if not prod_id:
-            # Si no hay prod_id en contexto, intentar extraerlo del mensaje anterior
             return enviar_mensaje_whatsapp(numero, "⚠️ Error: No se encontró el producto. Intenta seleccionarlo de nuevo.")
         
         partes = mensaje.split()
@@ -316,7 +306,7 @@ class Chat:
             self.set_waiting_for(numero, "flujo_categorias")
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
-            estado["cat_page"] = estado.get("cat_page", 1)  # Mantener página actual o iniciar en 1
+            estado["cat_page"] = estado.get("cat_page", 1)
             mensaje_menu = menu_categorias(numero, estado["cat_page"])
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)

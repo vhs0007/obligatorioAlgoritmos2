@@ -3,7 +3,6 @@ from Util.database import get_db_session, Categoria, Producto, Repartidor
 from sqlmodel import select
 
 def seed_categorias(db):
-    """Crea las categorías necesarias."""
     categorias_data = [
         {"nombre": "Todos"},
         {"nombre": "Minutas"},
@@ -17,7 +16,6 @@ def seed_categorias(db):
     
     categorias_creadas = []
     for cat_data in categorias_data:
-        # Verificar si ya existe
         stmt = select(Categoria).where(Categoria.nombre == cat_data["nombre"])
         categoria_existente = db.exec(stmt).first()
         
@@ -30,7 +28,6 @@ def seed_categorias(db):
     
     db.commit()
     
-    # Refrescar para obtener los IDs
     for cat in categorias_creadas:
         db.refresh(cat)
     
@@ -93,7 +90,6 @@ def seed_productos(db, categorias):
     
     productos_creados = 0
     for prod_data in productos_data:
-        # Verificar si ya existe (por nombre)
         stmt = select(Producto).where(Producto.nombre == prod_data["nombre"])
         producto_existente = db.exec(stmt).first()
         
@@ -108,7 +104,6 @@ def seed_productos(db, categorias):
 
 
 def seed_repartidores(db):
-    """Crea repartidores de ejemplo con zonas asignadas."""
     repartidores_data = [
         {"nombre": "Juan", "apellido": "Pérez", "telefono": "+59899123456", "zonaasignada": "noroeste", "cantidadkmrecorridos": 0.0},
         {"nombre": "María", "apellido": "González", "telefono": "+59899234567", "zonaasignada": "noreste", "cantidadkmrecorridos": 0.0},
@@ -135,22 +130,18 @@ def seed_repartidores(db):
 
 
 def main():
-    """Ejecuta el seeding completo de la base de datos."""
     print("🌱 Iniciando seeding de la base de datos...")
     print("=" * 60)
     
     try:
         db = get_db_session()
         
-        # 1. Crear categorías
         print("\n📁 Creando categorías...")
         categorias = seed_categorias(db)
         
-        # 2. Crear productos
         print("\n🍔 Creando productos...")
         productos_creados = seed_productos(db, categorias)
         
-        # 3. Crear repartidores
         print("\n🚴 Creando repartidores...")
         repartidores_creados = seed_repartidores(db)
         
