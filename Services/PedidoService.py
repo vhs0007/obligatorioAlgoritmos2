@@ -1,14 +1,21 @@
 from Util.database import Pedido, DetallePedido, Producto
-from datetime import datetime
+from datetime import datetime, timedelta
 from Services.RepartidorService import RepartidorService
 import math
+import random
 
 class PedidosService:
     def __init__(self, db_session):
         self.db = db_session
+        self.cola_no = []
+        self.cola_ne = []
+        self.cola_so = []
+        self.cola_se = []
+        self.tandas_creadas = []
+        self.contador_tandas = 0
+        self.repartidor_service = RepartidorService()
     
     def asignar_zona(pedido_latitud, pedido_longitud):
-        # Punto de referencia (centro)
         ref_latitud = -31.3876594
         ref_longitud = -57.9628518
         
@@ -16,15 +23,105 @@ class PedidosService:
         res_longitud = ref_longitud - float(pedido_longitud)
         
         if res_latitud >= 0 and res_longitud >= 0:
-            return "noroeste"
+            return "NO"
         elif res_latitud >= 0 and res_longitud <= 0:
-            return "noreste"
+            return "NE"
         elif res_latitud <= 0 and res_longitud >= 0:
-            return "suroeste"
+            return "SO"
         elif res_latitud <= 0 and res_longitud <= 0:
-            return "sureste"
+            return "SE"
         else:
-            return "noroeste"
+            return "NO"
+    
+    def obtener_cola_por_zona(self, zona):
+        if zona == "NO":
+            return self.cola_no
+        elif zona == "NE":
+            return self.cola_ne
+        elif zona == "SO":
+            return self.cola_so
+        elif zona == "SE":
+            return self.cola_se
+        else:
+            return self.cola_no
+    
+    def encolar_pedido(self, pedido):
+        cola = self.obtener_cola_por_zona(pedido.zona)
+        cola.append(pedido)
+        print(f" Pedido {pedido.idpedido} encolado en zona {pedido.zona}. Total en cola: {len(cola)}")
+    
+    def debe_crear_tanda(self, zona):
+        cola = self.obtener_cola_por_zona(zona)
+        
+        if len(cola) >= 7:
+            return True, "7_pedidos"
+        
+        if len(cola) > 0:
+            primer_pedido = cola[0]
+            if primer_pedido.fecha_confirmacion:
+                tiempo_espera = datetime.now() - primer_pedido.fecha_confirmacion
+                if tiempo_espera >= timedelta(minutes=45):
+                    return True, "45_minutos"
+        
+        return False, None
+    
+    def crear_tanda(self, zona):
+        cola = self.obtener_cola_por_zona(zona)
+        
+        if len(cola) == 0:
+            return None
+        
+        cantidad = min(7, len(cola))
+        pedidos_tanda = []
+        
+        for _ in range(cantidad):
+            if len(cola) > 0:
+                pedido = cola.pop(0)
+                pedidos_tanda.append(pedido)
+        
+        self.contador_tandas += 1
+        id_tanda = self.contador_tandas
+        
+        for pedido in pedidos_tanda:
+            pedido.id_tanda = id_tanda
+            self.db.commit()
+        
+        tanda = {
+            "id": id_tanda,
+            "zona": zona,
+            "pedidos": pedidos_tanda,
+            "creada_en": datetime.now()
+        }
+        
+        self.tandas_creadas.append(tanda)
+        
+        print(f" Tanda {id_tanda} creada para zona {zona} con {len(pedidos_tanda)} pedidos")
+        
+        self.repartidor_service.asignar_tanda(tanda)
+        
+        return tanda
+    
+    def revisar_todas_las_zonas(self):
+        zonas = ["NO", "NE", "SO", "SE"]
+        tandas_creadas = []
+        
+        for zona in zonas:
+            debe_crear, razon = self.debe_crear_tanda(zona)
+            if debe_crear:
+                tanda = self.crear_tanda(zona)
+                if tanda:
+                    tandas_creadas.append(tanda)
+        
+        return tandas_creadas
+    
+    def obtener_tandas_pendientes(self):
+        return self.tandas_creadas
+    
+    def obtener_tanda_por_id(self, id_tanda):
+        for tanda in self.tandas_creadas:
+            if tanda["id"] == id_tanda:
+                return tanda
+        return None
 
     def crear_pedido(self, id_chat, id_cliente, direccion, latitud=None, longitud=None):
         pedido = Pedido(
@@ -33,7 +130,7 @@ class PedidosService:
             direccion=direccion,
             latitud=latitud,
             longitud=longitud,
-            estado="en_carrito"  # Estado inicial
+            estado="en_carrito"
         )
         self.db.add(pedido)
         self.db.commit()
@@ -78,17 +175,17 @@ class PedidosService:
             pedido.estado = "pendiente"
             pedido.fecha_confirmacion = datetime.now()
             
+            pedido.codigo_verificacion = random.randint(1000, 9999)
+            
             if pedido.latitud and pedido.longitud:
                 zona = self.asignar_zona(pedido.latitud, pedido.longitud)
+                pedido.zona = zona
                 
-                id_repartidor = RepartidorService.asignar_repartidor(id_pedido, zona)
-                if id_repartidor:
-                    pedido.id_repartidor = id_repartidor
-                    print(f" Repartidor {id_repartidor} asignado al pedido {id_pedido} (zona: {zona})")
-                else:
-                    print(f" No se pudo asignar repartidor al pedido {id_pedido} (zona: {zona})")
+                self.encolar_pedido(pedido)
+                
+                self.revisar_todas_las_zonas()
             else:
-                print(f" Pedido {id_pedido} no tiene coordenadas, no se puede asignar repartidor por zona")
+                print(f"Pedido {id_pedido} no tiene coordenadas, no se puede asignar zona")
             
             self.db.commit()
             self.db.refresh(pedido)

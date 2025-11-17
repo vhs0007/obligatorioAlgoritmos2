@@ -1,7 +1,95 @@
 from Util.database import get_db_connection
 import math
+import random
 
 class RepartidorService:
+    
+    def __init__(self):
+        self.cola_tandas_pendientes = []
+        self.repartidores_ocupados = {}
+    
+    def obtener_repartidores_disponibles(self):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT idrepartidor, nombre, apellido FROM repartidor")
+        todos_repartidores = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        disponibles = []
+        for rep in todos_repartidores:
+            id_repartidor = rep[0]
+            if id_repartidor not in self.repartidores_ocupados:
+                disponibles.append(rep)
+        
+        return disponibles
+    
+    def asignar_tanda_a_repartidor(self, tanda, id_repartidor):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        for pedido in tanda["pedidos"]:
+            cur.execute(
+                "UPDATE pedido SET id_repartidor = %s WHERE idpedido = %s",
+                (id_repartidor, pedido.idpedido)
+            )
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        self.repartidores_ocupados[id_repartidor] = tanda["id"]
+        
+        print(f" Repartidor {id_repartidor} asignado a Tanda {tanda['id']} (Zona: {tanda['zona']})")
+        return True
+    
+    def asignar_tanda(self, tanda):
+        repartidores_disponibles = self.obtener_repartidores_disponibles()
+        
+        if len(repartidores_disponibles) > 0:
+            id_repartidor = repartidores_disponibles[0][0]
+            self.asignar_tanda_a_repartidor(tanda, id_repartidor)
+            return True
+        else:
+            self.cola_tandas_pendientes.append(tanda)
+            print(f" Tanda {tanda['id']} encolada (sin repartidores disponibles)")
+            
+            return self.asignar_tanda_aleatoria(tanda)
+    
+    def asignar_tanda_aleatoria(self, tanda):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT idrepartidor FROM repartidor")
+        todos_repartidores = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        if len(todos_repartidores) == 0:
+            return False
+        
+        repartidor_elegido = random.choice(todos_repartidores)
+        id_repartidor = repartidor_elegido[0]
+        
+        self.asignar_tanda_a_repartidor(tanda, id_repartidor)
+        print(f" Tanda {tanda['id']} asignada aleatoriamente a repartidor {id_repartidor}")
+        return True
+    
+    def finalizar_tanda(self, id_repartidor):
+        if id_repartidor in self.repartidores_ocupados:
+            tanda_id = self.repartidores_ocupados[id_repartidor]
+            del self.repartidores_ocupados[id_repartidor]
+            print(f"✅ Tanda {tanda_id} finalizada para repartidor {id_repartidor}")
+            
+            if len(self.cola_tandas_pendientes) > 0:
+                siguiente_tanda = self.cola_tandas_pendientes.pop(0)
+                self.asignar_tanda(siguiente_tanda)
+    
+    def obtener_tandas_pendientes(self):
+        return len(self.cola_tandas_pendientes)
 
     def asignar_repartidor(id_pedido, zona):
         conn = get_db_connection()
@@ -14,16 +102,15 @@ class RepartidorService:
         repartidor = cur.fetchone()
         
         if not repartidor:
-            print(f" Error: No se encontró repartidor para la zona {zona}")
+            print(f"No se encontró repartidor para la zona {zona}")
             cur.close()
             conn.close()
             return None
 
-        # Asignar repartidor al pedido
         cur.execute("UPDATE pedido SET id_repartidor = %s WHERE idpedido = %s", (repartidor[0], id_pedido))
         
         if cur.rowcount == 0:
-            print(f"⚠️ Error: No se pudo asignar el repartidor {repartidor[0]} al pedido {id_pedido}")
+            print(f"No se pudo asignar el repartidor {repartidor[0]} al pedido {id_pedido}")
             cur.close()
             conn.close()
             return None
@@ -77,7 +164,7 @@ class RepartidorService:
         from Util.database import get_db_connection
         
         if not lista_pedidos:
-            return 0.0
+            return 0
         
         conn = get_db_connection()
         cur = conn.cursor()
@@ -85,7 +172,7 @@ class RepartidorService:
         centro_lat = -31.3876594
         centro_lon = -57.9628518
         
-        total_km = 0.0
+        total_km = 0
         lat_anterior = centro_lat
         lon_anterior = centro_lon
         

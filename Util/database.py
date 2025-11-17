@@ -41,6 +41,9 @@ class Pedido(SQLModel, table=True):
     longitud: Optional[str] = None
     estado: str = Field(default="en_carrito")
     fecha_confirmacion: Optional[datetime] = None
+    zona: Optional[str] = None  # NO, NE, SO, SE
+    codigo_verificacion: Optional[int] = None  # Código aleatorio para verificar entrega
+    id_tanda: Optional[int] = None  # ID de la tanda a la que pertenece
 
 
 class DetallePedido(SQLModel, table=True):

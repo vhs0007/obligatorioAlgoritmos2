@@ -152,7 +152,6 @@ class Chat:
 
     def flujo_inicio(self, numero, mensaje):
         if mensaje in ("hola", "hi", "buenas", "buenos dias"):
-            # Solo saludar, no mostrar menú automáticamente
             respuesta = "👋 ¡Hola! Bienvenido a GordoEats 🍔\n\nEscribí *menu* para ver nuestros productos o *carrito* para ver tu pedido."
             self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
             return enviar_mensaje_whatsapp(numero, respuesta)
@@ -204,7 +203,7 @@ class Chat:
             estado["page"] = 1
             return mostrar_productos(numero, mensaje)
 
-        if mensaje == "salir":
+        if mensaje in ("cancelar", "salir"):
             self.clear_state(numero)
             respuesta = "❌ Cancelado. Escribí *menu* para empezar de nuevo."
             self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
