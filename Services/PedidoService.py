@@ -1,9 +1,30 @@
 from Util.database import Pedido, DetallePedido, Producto
 from datetime import datetime
+from Services.RepartidorService import RepartidorService
+import math
 
 class PedidosService:
     def __init__(self, db_session):
         self.db = db_session
+    
+    def asignar_zona(pedido_latitud, pedido_longitud):
+        # Punto de referencia (centro)
+        ref_latitud = -31.3876594
+        ref_longitud = -57.9628518
+        
+        res_latitud = ref_latitud - float(pedido_latitud)
+        res_longitud = ref_longitud - float(pedido_longitud)
+        
+        if res_latitud >= 0 and res_longitud >= 0:
+            return "noroeste"
+        elif res_latitud >= 0 and res_longitud <= 0:
+            return "noreste"
+        elif res_latitud <= 0 and res_longitud >= 0:
+            return "suroeste"
+        elif res_latitud <= 0 and res_longitud <= 0:
+            return "sureste"
+        else:
+            return "noroeste"
 
     def crear_pedido(self, id_chat, id_cliente, direccion, latitud=None, longitud=None):
         pedido = Pedido(
@@ -12,10 +33,12 @@ class PedidosService:
             direccion=direccion,
             latitud=latitud,
             longitud=longitud,
+            estado="en_carrito"  # Estado inicial
         )
         self.db.add(pedido)
         self.db.commit()
         self.db.refresh(pedido)
+        
         return pedido
 
     def agregar_producto(self, id_pedido, id_producto, cantidad):
@@ -52,8 +75,23 @@ class PedidosService:
     def confirmar_pedido(self, id_pedido):
         pedido = self.db.query(Pedido).filter(Pedido.idpedido == id_pedido).first()
         if pedido:
+            pedido.estado = "pendiente"
             pedido.fecha_confirmacion = datetime.now()
+            
+            if pedido.latitud and pedido.longitud:
+                zona = self.asignar_zona(pedido.latitud, pedido.longitud)
+                
+                id_repartidor = RepartidorService.asignar_repartidor(id_pedido, zona)
+                if id_repartidor:
+                    pedido.id_repartidor = id_repartidor
+                    print(f" Repartidor {id_repartidor} asignado al pedido {id_pedido} (zona: {zona})")
+                else:
+                    print(f" No se pudo asignar repartidor al pedido {id_pedido} (zona: {zona})")
+            else:
+                print(f" Pedido {id_pedido} no tiene coordenadas, no se puede asignar repartidor por zona")
+            
             self.db.commit()
+            self.db.refresh(pedido)
         return pedido
 
     def cancelar_pedido(self, id_pedido):
@@ -65,10 +103,9 @@ class PedidosService:
         return False
 
     def add_to_cart_pedidos(self, numero, product_id, cantidad, observaciones=""):
-        from Util.state import get_cart
+        from Util.estado import get_cart
         cart = get_cart(numero)
         
-        # Buscar producto en la base de datos
         producto = self.db.query(Producto).filter(Producto.idproducto == int(product_id)).first()
         if not producto:
             return False, "Producto no encontrado"
@@ -84,7 +121,7 @@ class PedidosService:
         return True, None
 
     def detalle_carrito(self, numero):
-        from Util.state import get_cart
+        from Util.estado import get_cart
         cart = get_cart(numero)
         lineas = []
         total = 0

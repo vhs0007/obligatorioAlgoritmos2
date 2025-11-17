@@ -1,7 +1,7 @@
 from Util.database import get_db_session
 from Services.PedidoService import PedidosService
 from Services.ProductoService import ProductosService
-from Models.Chat import Chat
+from Models.chat import Chat
 
 
 def crear_bot_instancia():
@@ -22,5 +22,5 @@ bot = crear_bot_instancia()
 
 
 if __name__ == "__main__":
-    print("✅ Bot de GordoEats iniciado correctamente")
-    print(f"📊 Estado del bot: {bot}")
+    print("Bot gordura ok")
+    print(f" Estado del bot: {bot}")

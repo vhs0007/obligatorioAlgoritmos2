@@ -1,13 +1,14 @@
-from functools import wraps
 from typing import Any, Optional, Dict, Callable
-import inspect
 from datetime import datetime
 from Services.PedidoService import PedidosService
 from Services.ProductoService import ProductosService
+from Services.ChatService import ChatService
+from Services.ClienteService import ClienteService
 from Util.database import get_db_session
 from whatsapp_api import enviar_mensaje_whatsapp
 from Util.menus import menu_categorias, mostrar_productos
-from Util.state import clear_cart
+from Util.estado import clear_cart, get_estado, reset_estado
+
 
 class Chat:
     def __init__(self, id_chat=None, id_cliente=None, id_repartidor=None, pedido_service=None, producto_service=None):
@@ -16,12 +17,14 @@ class Chat:
         self.id_repartidor = id_repartidor
         self.pedido_service = pedido_service
         self.producto_service = producto_service
-        self.function_graph: Dict[str, Dict] = {}
+        
+        db_session = get_db_session()
+        self.chat_service = ChatService(db_session)
+        
         self.usuarios: Dict[str, Dict[str, Any]] = {}  
-        self.sesiones: Dict[str, Dict[str, Any]] = {}  
-        self.waiting_for: Optional[Callable] = None
         self.conversation_data: Dict[str, Any] = {}
         
+        self.function_graph: Dict[str, Dict] = {}
         self._register_commands()
     
     def _register_commands(self):
@@ -47,23 +50,11 @@ class Chat:
         }
     
     def get_session(self, numero):
-        if numero not in self.sesiones:
-            self.sesiones[numero] = {
-                "page": 1,
-                "filter": "cat_all",
-                "order_asc": True,
-                "state": "inicio"  
-            }
-        return self.sesiones[numero]
+        estado = get_estado(numero)
+        return estado
     
     def reset_session(self, numero):
-        if numero in self.sesiones:
-            self.sesiones[numero] = {
-                "page": 1,
-                "filter": "cat_all",
-                "order_asc": True,
-                "state": "inicio"  
-            }
+        reset_estado(numero)
     
     def clear_state(self, numero):
         self.reset_session(numero)
@@ -75,12 +66,11 @@ class Chat:
         return self.usuarios[numero]
     
     def set_waiting_for(self, numero, func: Callable, **context_data):
-        """Establecer función esperada para próximo mensaje del usuario."""
         usuario = self.obtener_o_crear_usuario(numero)
         usuario['waiting_for'] = func
         usuario['context_data'] = context_data
         
-        print(f"⏳ {numero}: Esperando respuesta para: {func.__name__}")
+        print(f"{numero}: Esperando respuesta para: {func.__name__}")
     
     def set_conversation_data(self, key: str, value: Any):
         self.conversation_data[key] = value
@@ -92,9 +82,11 @@ class Chat:
         self.conversation_data = {}
     
     def reset_conversation(self):
-        self.waiting_for = None
+        for usuario in self.usuarios.values():
+            usuario.pop('waiting_for', None)
+            usuario.pop('context_data', None)
         self.conversation_data = {}
-        print("✅ Conversación reseteada.")
+        print("Conversación reseteada.")
     
     def is_waiting_response(self, numero) -> bool:
         usuario = self.usuarios.get(numero, {})
@@ -108,17 +100,21 @@ class Chat:
         print(f"\n{'='*60}")
         print("ESTADO DE LA CONVERSACIÓN")
         print(f"{'='*60}")
-        waiting = self.waiting_for
-        print(f"Esperando respuesta: {waiting.__name__ if waiting else 'No'}")
+        estado_memoria = get_estado(self.id_cliente if isinstance(self.id_cliente, str) else "") if self.id_cliente else "N/A"
+        print(f"Estado en memoria: {estado_memoria}")
         print(f"Datos de conversación: {self.conversation_data}")
         print(f"{'='*60}\n")
 
-    # ==================== FUNCIONES DEL BOT PARA MANEJAR LA CONVERSACIÓN ====================
-    
     def cmd_menu(self, numero, texto):
-        sesion = self.get_session(numero)
-        sesion["state"] = "viendo_categorias"
-        return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+        if not self.id_chat:
+            self.id_chat = f"chat_{numero}"
+        
+        estado = get_estado(numero)
+        estado["state"] = "viendo_categorias"
+        
+        mensaje_menu = menu_categorias(numero)
+        self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+        return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
     def funcion_ayuda(self, numero, texto):
         ayuda_texto = (
@@ -137,43 +133,58 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, res["body"])
 
     def handle_text(self, numero, texto):
-        """Punto de entrada para mensajes de texto desde el webhook."""
         texto = texto.lower().strip()
-        if not self.id_cliente:
-            self.id_cliente = numero 
+        
+        if not self.id_chat:
             self.id_chat = f"chat_{numero}"
+        
         flujo_actual = self.get_waiting_function(numero)
         if flujo_actual:
             return flujo_actual(numero, texto)
         return self.flujo_inicio(numero, texto)
+    
+    def _registrar_y_enviar_mensaje(self, numero, mensaje):
+        if self.id_chat:
+            self.chat_service.registrar_mensaje(self.id_chat, mensaje, es_cliente=False)
+        return enviar_mensaje_whatsapp(numero, mensaje)
 
     # --- FLUJO ---
 
     def flujo_inicio(self, numero, mensaje):
         if mensaje in ("menu", "hola", "hi", "buenas", "buenos dias"):
             self.set_waiting_for(numero, self.flujo_categorias)
-            return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+            estado = get_estado(numero)
+            estado["state"] = "viendo_categorias"
+            mensaje_menu = menu_categorias(numero)
+            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
         if mensaje == "carrito":
             self.set_waiting_for(numero, self.flujo_carrito)
             res = self.pedido_service.mostrar_carrito_pedidos(numero)
+            self.chat_service.registrar_mensaje(self.id_chat, res["body"], es_cliente=False)
             return enviar_mensaje_whatsapp(numero, res["body"])
 
-        return enviar_mensaje_whatsapp(
-            numero,
-            "👋 Escribí *menu* para ver productos o *carrito* para ver tu pedido."
-        )
+        respuesta = "👋 Escribí *menu* para ver productos o *carrito* para ver tu pedido."
+        self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+        return enviar_mensaje_whatsapp(numero, respuesta)
 
     def flujo_categorias(self, numero, mensaje):
         if mensaje.startswith("cat_"):
             self.set_waiting_for(numero, self.flujo_productos)
+            estado = get_estado(numero)
+            estado["state"] = "viendo_productos"
             return mostrar_productos(numero, mensaje)
 
         if mensaje == "salir":
             self.clear_state(numero)
-            return enviar_mensaje_whatsapp(numero, "❌ Cancelado. Escribí *menu* para empezar de nuevo.")
+            respuesta = " Cancelado. Escribí *menu* para empezar de nuevo."
+            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, respuesta)
 
-        return enviar_mensaje_whatsapp(numero, "📋 Elegí una categoría del menú.")
+        respuesta = "📋 Elegí una categoría del menú."
+        self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+        return enviar_mensaje_whatsapp(numero, respuesta)
 
     def flujo_productos(self, numero, mensaje):
         if mensaje == "carrito":
@@ -183,6 +194,8 @@ class Chat:
 
         if mensaje == "menu":
             self.set_waiting_for(numero, self.flujo_categorias)
+            estado = get_estado(numero)
+            estado["state"] = "viendo_categorias"
             return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
 
         if mensaje.startswith("add_"):
@@ -207,19 +220,30 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, f"❌ Error al agregar: {err}")
 
         self.set_waiting_for(numero, self.flujo_productos)
-        return enviar_mensaje_whatsapp(
-            numero,
-            f"✅ {cantidad} agregado(s) al carrito.\nEscribí *carrito* para ver tu pedido o *menu* para volver."
-        )
+        estado = get_estado(numero)
+        estado["state"] = "en_carrito"
+        
+        respuesta = f"✅ {cantidad} agregado(s) al carrito.\nEscribí *carrito* para ver tu pedido o *menu* para volver."
+        self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+        
+        return enviar_mensaje_whatsapp(numero, respuesta)
 
     def flujo_carrito(self, numero, mensaje):
         if mensaje in ("2", "seguir", "seguir pidiendo"):
             self.set_waiting_for(numero, self.flujo_categorias)
-            return enviar_mensaje_whatsapp(numero, menu_categorias(numero))
+            estado = get_estado(numero)
+            estado["state"] = "viendo_categorias"
+            mensaje_menu = menu_categorias(numero)
+            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
         if mensaje in ("3", "confirmar"):
             self.set_waiting_for(numero, self.flujo_confirmacion)
-            return enviar_mensaje_whatsapp(numero, "📍 Enviá tu ubicación para calcular el envío.")
+            estado = get_estado(numero)
+            estado["state"] = "confirmando"
+            respuesta = "📍 Enviá tu ubicación para calcular el envío."
+            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, respuesta)
 
         if mensaje in ("1", "quitar", "eliminar"):
             return enviar_mensaje_whatsapp(numero, "🗑️ Escribí el nombre del producto a quitar (a implementar).")
@@ -235,7 +259,6 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, "📋 Escribí 1 para quitar, 2 para seguir pidiendo o 3 para confirmar.")
 
     def es_ubicacion(self, contenido: str) -> bool:
-        """Validar si el contenido es una ubicación (lat, lon)."""
         try:
             partes = contenido.split(',')
             return len(partes) == 2 and float(partes[0]) and float(partes[1])
@@ -253,19 +276,30 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, "📍 Enviá tu ubicación para calcular el envío.")
 
     def handle_location(self, numero, contenido):
-        """Maneja la recepción de ubicación del usuario."""
         try:
             lat, lon = contenido.split(',')
             id_cliente = self.id_cliente or self.conversation_data.get('id_cliente')
             id_chat = self.id_chat or self.conversation_data.get('id_chat')
             direccion = self.conversation_data.get('direccion') or ''
             pedido_service = self.pedido_service
+            
             if not (pedido_service and id_cliente and id_chat):
                 return enviar_mensaje_whatsapp(numero, "⚠️ Faltan datos para crear el pedido. Intentalo de nuevo.")
 
+            self.chat_service.registrar_mensaje(id_chat, f"Ubicación: {lat}, {lon}", es_cliente=True)
+            
             pedido = pedido_service.crear_pedido(id_chat=id_chat, id_cliente=id_cliente, direccion=direccion, latitud=lat, longitud=lon)
             self.conversation_data['id_pedido'] = getattr(pedido, 'idpedido', None)
+            
+            estado = get_estado(numero)
+            estado["state"] = "pedido_confirmado"
+            
             msg = f"📍 Recibí tu ubicación:\nLatitud: {lat}\nLongitud: {lon}\nTu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')}"
+            
+            self.chat_service.registrar_mensaje(id_chat, msg, es_cliente=False)
+            
             return enviar_mensaje_whatsapp(numero, msg)
-        except Exception:
+        except Exception as e:
+            print(f"Error en handle_location: {e}")
             return enviar_mensaje_whatsapp(numero, "⚠️ No se pudo procesar la ubicación correctamente.")
+

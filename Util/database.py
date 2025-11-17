@@ -10,15 +10,9 @@ engine = create_engine(DATABASE_URL, echo=True)
 
 logger = logging.getLogger("database")
 
-
-# =========================
-# Modelos (SQLModel)
-# =========================
-
 class Categoria(SQLModel, table=True):
     id_categoria: Optional[int] = Field(default=None, primary_key=True)
     nombre: str
-
 
 class Producto(SQLModel, table=True):
     idproducto: Optional[int] = Field(default=None, primary_key=True)
@@ -35,6 +29,7 @@ class Pedido(SQLModel, table=True):
     direccion: str
     latitud: Optional[str] = None
     longitud: Optional[str] = None
+    estado: str = Field(default="en_carrito")
     fecha_confirmacion: Optional[datetime] = None
 
 
@@ -45,9 +40,37 @@ class DetallePedido(SQLModel, table=True):
     cantidad: int
 
 
-# =========================
-# Sesiones y conexiones
-# =========================
+class Cliente(SQLModel, table=True):
+    idcliente: Optional[int] = Field(default=None, primary_key=True)
+    nombre: str
+    apellido: str
+    telefono: str
+
+
+class Repartidor(SQLModel, table=True):
+    idrepartidor: Optional[int] = Field(default=None, primary_key=True)
+    nombre: str
+    apellido: str
+    telefono: str
+    cantidadkmrecorridos: float = Field(default=0.0)
+    zonaasignada: Optional[str] = None
+
+
+class Chat(SQLModel, table=True):
+    idchat: Optional[int] = Field(default=None, primary_key=True)
+    id_chat: str = Field(unique=True, index=True)
+    id_cliente: int = Field(foreign_key="cliente.idcliente")
+    id_repartidor: Optional[int] = Field(default=None, foreign_key="repartidor.idrepartidor")
+    fecha_creacion: Optional[datetime] = Field(default_factory=datetime.now)
+
+
+class Mensaje(SQLModel, table=True):
+    idmensaje: Optional[int] = Field(default=None, primary_key=True)
+    id_chat: str = Field(foreign_key="chat.id_chat")
+    contenido: str
+    es_cliente: bool = Field(default=True)
+    fecha_envio: Optional[datetime] = Field(default_factory=datetime.now)
+
 
 def get_db_session():
     try:
@@ -66,9 +89,6 @@ def init_db():
 
 
 def get_db_connection():
-    """
-    Conexión cruda (psycopg2) para servicios que ejecutan SQL directo.
-    """
     try:
         dsn = DATABASE_URL.replace("+psycopg2", "")
         conn = psycopg2.connect(dsn)
