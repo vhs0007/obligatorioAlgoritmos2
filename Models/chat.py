@@ -8,7 +8,7 @@ from Util.database import get_db_session
 from whatsapp_api import enviar_mensaje_whatsapp
 from Util.menus import menu_categorias, mostrar_productos
 from Util.product_util import lista_productos
-from Util.estado import clear_cart, get_estado, reset_estado
+from Util.estado import clear_cart, get_estado, reset_estado, get_waiting_for, set_waiting_for, clear_waiting_for
 
 
 class Chat:
@@ -22,11 +22,19 @@ class Chat:
         db_session = get_db_session()
         self.chat_service = ChatService(db_session)
         
-        self.usuarios: Dict[str, Dict[str, Any]] = {}  
         self.conversation_data: Dict[str, Any] = {}
         
         self.function_graph: Dict[str, Dict] = {}
         self._register_commands()
+        
+        # Mapeo de nombres de funciones a métodos
+        self.function_map = {
+            "flujo_categorias": self.flujo_categorias,
+            "flujo_productos": self.flujo_productos,
+            "flujo_cantidad": self.flujo_cantidad,
+            "flujo_carrito": self.flujo_carrito,
+            "flujo_confirmacion": self.flujo_confirmacion,
+        }
     
     def _register_commands(self):
         self.function_graph = {
@@ -59,19 +67,12 @@ class Chat:
     
     def clear_state(self, numero):
         self.reset_session(numero)
-        self.reset_conversation()
+        self.reset_conversation(numero)
     
-    def obtener_o_crear_usuario(self, numero):
-        if numero not in self.usuarios:
-            self.usuarios[numero] = {}
-        return self.usuarios[numero]
-    
-    def set_waiting_for(self, numero, func: Callable, **context_data):
-        usuario = self.obtener_o_crear_usuario(numero)
-        usuario['waiting_for'] = func
-        usuario['context_data'] = context_data
-        
-        print(f"{numero}: Esperando respuesta para: {func.__name__}")
+    def set_waiting_for(self, numero, func_name: str, **context_data):
+        """Establece la función esperada usando el nombre de la función."""
+        set_waiting_for(numero, func_name, context_data)
+        print(f"{numero}: Esperando respuesta para: {func_name}")
     
     def set_conversation_data(self, key: str, value: Any):
         self.conversation_data[key] = value
@@ -82,20 +83,20 @@ class Chat:
     def clear_conversation_data(self):
         self.conversation_data = {}
     
-    def reset_conversation(self):
-        for usuario in self.usuarios.values():
-            usuario.pop('waiting_for', None)
-            usuario.pop('context_data', None)
+    def reset_conversation(self, numero):
+        clear_waiting_for(numero)
         self.conversation_data = {}
         print("Conversación reseteada.")
     
     def is_waiting_response(self, numero) -> bool:
-        usuario = self.usuarios.get(numero, {})
-        return usuario.get('waiting_for') is not None
+        return get_waiting_for(numero) is not None
     
     def get_waiting_function(self, numero) -> Optional[Callable]:
-        usuario = self.usuarios.get(numero, {})
-        return usuario.get('waiting_for')
+        """Obtiene la función esperada y la retorna como callable."""
+        func_name = get_waiting_for(numero)
+        if func_name and func_name in self.function_map:
+            return self.function_map[func_name]
+        return None
     
     def print_state(self):
         print(f"\n{'='*60}")
@@ -152,8 +153,14 @@ class Chat:
     # --- FLUJO ---
 
     def flujo_inicio(self, numero, mensaje):
-        if mensaje in ("menu", "hola", "hi", "buenas", "buenos dias"):
-            self.set_waiting_for(numero, self.flujo_categorias)
+        if mensaje in ("hola", "hi", "buenas", "buenos dias"):
+            # Solo saludar, no mostrar menú automáticamente
+            respuesta = "👋 ¡Hola! Bienvenido a GordoEats 🍔\n\nEscribí *menu* para ver nuestros productos o *carrito* para ver tu pedido."
+            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, respuesta)
+        
+        if mensaje == "menu":
+            self.set_waiting_for(numero, "flujo_categorias")
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
             estado["cat_page"] = 1  # Iniciar en página 1
@@ -162,7 +169,7 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
         if mensaje == "carrito":
-            self.set_waiting_for(numero, self.flujo_carrito)
+            self.set_waiting_for(numero, "flujo_carrito")
             res = self.pedido_service.mostrar_carrito_pedidos(numero)
             self.chat_service.registrar_mensaje(self.id_chat, res["body"], es_cliente=False)
             return enviar_mensaje_whatsapp(numero, res["body"])
@@ -196,14 +203,14 @@ class Chat:
         
         # Seleccionar categoría
         if mensaje.startswith("cat_"):
-            self.set_waiting_for(numero, self.flujo_productos)
+            self.set_waiting_for(numero, "flujo_productos")
             estado["state"] = "viendo_productos"
             estado["page"] = 1  # Resetear página de productos
             return mostrar_productos(numero, mensaje)
 
         if mensaje == "salir":
             self.clear_state(numero)
-            respuesta = " Cancelado. Escribí *menu* para empezar de nuevo."
+            respuesta = "❌ Cancelado. Escribí *menu* para empezar de nuevo."
             self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
             return enviar_mensaje_whatsapp(numero, respuesta)
 
@@ -238,7 +245,7 @@ class Chat:
         
         if mensaje == "prod_filter":
             # Volver a categorías para filtrar
-            self.set_waiting_for(numero, self.flujo_categorias)
+            self.set_waiting_for(numero, "flujo_categorias")
             estado["state"] = "viendo_categorias"
             mensaje_menu = menu_categorias(numero, estado.get("cat_page", 1))
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
@@ -253,23 +260,35 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, payload)
         
         if mensaje == "carrito":
-            self.set_waiting_for(numero, self.flujo_carrito)
+            self.set_waiting_for(numero, "flujo_carrito")
             res = self.pedido_service.mostrar_carrito_pedidos(numero)
             return enviar_mensaje_whatsapp(numero, res["body"])
 
         if mensaje == "menu":
-            self.set_waiting_for(numero, self.flujo_categorias)
+            self.set_waiting_for(numero, "flujo_categorias")
             estado["state"] = "viendo_categorias"
             return enviar_mensaje_whatsapp(numero, menu_categorias(numero, estado.get("cat_page", 1)))
 
         if mensaje.startswith("add_"):
             prod_id = mensaje.replace("add_", "")
-            self.set_waiting_for(numero, lambda n, t: self.flujo_cantidad(n, t, prod_id))
+            # Guardar prod_id en contexto para flujo_cantidad
+            estado_global = get_estado(numero)
+            estado_global["context_data"] = {"prod_id": prod_id}
+            self.set_waiting_for(numero, "flujo_cantidad", {"prod_id": prod_id})
             return enviar_mensaje_whatsapp(numero, "📝 Escribí la cantidad con observación (ej: 2 sin cebolla)")
 
         return enviar_mensaje_whatsapp(numero, "📋 Escribí *carrito* para ver tu pedido o *menu* para volver al inicio.")
 
-    def flujo_cantidad(self, numero, mensaje, prod_id):
+    def flujo_cantidad(self, numero, mensaje):
+        # Obtener prod_id del contexto
+        estado_global = get_estado(numero)
+        context_data = estado_global.get("context_data", {})
+        prod_id = context_data.get("prod_id")
+        
+        if not prod_id:
+            # Si no hay prod_id en contexto, intentar extraerlo del mensaje anterior
+            return enviar_mensaje_whatsapp(numero, "⚠️ Error: No se encontró el producto. Intenta seleccionarlo de nuevo.")
+        
         partes = mensaje.split()
         try:
             cantidad = int(partes[0])
@@ -283,7 +302,7 @@ class Chat:
         if not ok:
             return enviar_mensaje_whatsapp(numero, f"❌ Error al agregar: {err}")
 
-        self.set_waiting_for(numero, self.flujo_productos)
+        self.set_waiting_for(numero, "flujo_productos")
         estado = get_estado(numero)
         estado["state"] = "en_carrito"
         
@@ -294,7 +313,7 @@ class Chat:
 
     def flujo_carrito(self, numero, mensaje):
         if mensaje in ("2", "seguir", "seguir pidiendo"):
-            self.set_waiting_for(numero, self.flujo_categorias)
+            self.set_waiting_for(numero, "flujo_categorias")
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
             estado["cat_page"] = estado.get("cat_page", 1)  # Mantener página actual o iniciar en 1
@@ -303,7 +322,7 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
         if mensaje in ("3", "confirmar"):
-            self.set_waiting_for(numero, self.flujo_confirmacion)
+            self.set_waiting_for(numero, "flujo_confirmacion")
             estado = get_estado(numero)
             estado["state"] = "confirmando"
             respuesta = "📍 Enviá tu ubicación para calcular el envío."

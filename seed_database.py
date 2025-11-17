@@ -1,7 +1,4 @@
-"""
-Script de seeding para poblar la base de datos con datos de prueba.
-Incluye categorías, productos y repartidores.
-"""
+
 from Util.database import get_db_session, Categoria, Producto, Repartidor
 from sqlmodel import select
 
