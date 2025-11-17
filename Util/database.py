@@ -1,10 +1,20 @@
 import logging
+import os
 import psycopg2
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, create_engine, Session, Field
 
-DATABASE_URL = "postgresql+psycopg2://postgres:Raboloko18!@localhost:5432/obligatorio_algoritmos"
+# Obtener DATABASE_URL de variable de entorno o usar valor por defecto para desarrollo local
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg2://postgres:Raboloko18!@localhost:5432/obligatorio_algoritmos"
+)
+
+# Si DATABASE_URL viene de Render u otro servicio, puede venir sin el prefijo psycopg2
+# Convertirlo al formato correcto si es necesario
+if DATABASE_URL.startswith("postgresql://") and "+psycopg2" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 engine = create_engine(DATABASE_URL, echo=True)
 
@@ -89,12 +99,21 @@ def init_db():
 
 
 def get_db_connection():
+    """
+    Obtiene una conexión cruda a la base de datos usando psycopg2.
+    Convierte la URL de SQLModel al formato que psycopg2 espera.
+    """
     try:
+        # Para psycopg2.connect(), necesitamos la URL sin el prefijo +psycopg2
+        # y sin el esquema postgresql+psycopg2, solo postgresql
         dsn = DATABASE_URL.replace("+psycopg2", "")
+        
+        # Si viene de Render, puede tener formato postgresql://, que es correcto para psycopg2
         conn = psycopg2.connect(dsn)
         return conn
     except Exception as e:
-        logger.error("Error obteniendo conexión cruda a la base de datos", exc_info=True)
+        logger.error(f"Error obteniendo conexión cruda a la base de datos: {e}", exc_info=True)
+        logger.error(f"Intentando con DATABASE_URL: {DATABASE_URL[:50]}...")  # Log parcial por seguridad
         raise
 
 if __name__ == "__main__":

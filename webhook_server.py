@@ -6,11 +6,38 @@ from Services.PedidoService import PedidosService
 from Services.ProductoService import ProductosService
 from Services.ChatService import ChatService
 from Services.ClienteService import ClienteService
-from Util.database import get_db_session
+from Util.database import get_db_session, init_db, engine
+from sqlmodel import text
 from whatsapp_api import procesar_mensaje_recibido, WHATSAPP_PHONE_NUMBER_ID
 
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
+
+# Inicializar tablas automáticamente al iniciar el servidor (solo si no existen)
+@app.on_event("startup")
+async def startup_event():
+    """Inicializa las tablas de la base de datos al iniciar el servidor."""
+    try:
+        # Verificar si las tablas ya existen
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'cliente'
+                );
+            """))
+            tabla_existe = result.scalar()
+        
+        if not tabla_existe:
+            print("🔄 Tablas no encontradas. Inicializando base de datos...")
+            init_db()
+            print("✅ Tablas creadas correctamente")
+        else:
+            print("✅ Base de datos ya inicializada")
+    except Exception as e:
+        print(f"⚠️ Error al verificar/inicializar base de datos: {e}")
+        print("💡 Puedes inicializar manualmente visitando /init-db")
 
 
 @app.get("/")
@@ -18,13 +45,37 @@ async def root():
     return {
         "message": "WhatsApp Webhook Server funcionando",
         "phone_number_id": WHATSAPP_PHONE_NUMBER_ID,
-        "endpoints": {"webhook": "/webhook", "health": "/health"},
+        "endpoints": {
+            "webhook": "/webhook",
+            "health": "/health",
+            "init_db": "/init-db"
+        },
     }
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/init-db")
+async def init_database():
+    """Endpoint para inicializar las tablas manualmente (si no se inicializaron automáticamente)."""
+    try:
+        init_db()
+        return {
+            "status": "success",
+            "message": "✅ Tablas creadas correctamente",
+            "tablas": [
+                "categoria", "producto", "cliente", "repartidor",
+                "chat", "mensaje", "pedido", "detalle_pedido"
+            ]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"❌ Error al inicializar: {str(e)}"
+        }
 
 
 @app.get("/webhook")
