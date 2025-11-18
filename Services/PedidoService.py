@@ -15,7 +15,7 @@ class PedidosService:
         self.contador_tandas = 0
         self.repartidor_service = RepartidorService()
     
-    def asignar_zona(pedido_latitud, pedido_longitud):
+    def asignar_zona(self, pedido_latitud, pedido_longitud):
         ref_latitud = -31.3876594
         ref_longitud = -57.9628518
         
