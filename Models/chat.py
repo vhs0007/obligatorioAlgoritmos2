@@ -19,13 +19,10 @@ class Chat:
         self.pedido_service = pedido_service
         self.producto_service = producto_service
         
-        # ✅ FIXED: Usar el chat_service pasado en lugar de crear una nueva sesión
-        # Si no se pasa, crear uno temporal (solo para testing)
         if chat_service:
             self.chat_service = chat_service
             self._owns_chat_service = False
         else:
-            # ⚠️ Solo para testing - crea sesión que no se cierra
             db_session = get_db_session()
             self.chat_service = ChatService(db_session)
             self._owns_chat_service = True
@@ -35,7 +32,6 @@ class Chat:
         self.function_graph: Dict[str, Dict] = {}
         self._register_commands()
         
-        # Mapeo de nombres de funciones a métodos
         self.function_map = {
             "flujo_categorias": self.flujo_categorias,
             "flujo_productos": self.flujo_productos,
@@ -168,7 +164,7 @@ class Chat:
             self.set_waiting_for(numero, "flujo_categorias")
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
-            estado["cat_page"] = 1  # Iniciar en página 1
+            estado["cat_page"] = 1  
             mensaje_menu = menu_categorias(numero, 1)
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)

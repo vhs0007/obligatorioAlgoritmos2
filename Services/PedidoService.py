@@ -130,11 +130,23 @@ class PedidosService:
             direccion=direccion,
             latitud=latitud,
             longitud=longitud,
-            estado="en_carrito"
+            estado="pendiente",
+            fecha_confirmacion=datetime.now(),
+            codigo_verificacion=random.randint(1000, 9999)
         )
         self.db.add(pedido)
         self.db.commit()
         self.db.refresh(pedido)
+        
+        if pedido.latitud and pedido.longitud:
+            zona = self.asignar_zona(pedido.latitud, pedido.longitud)
+            pedido.zona = zona
+            self.db.commit()
+            self.encolar_pedido(pedido)
+            
+            self.revisar_todas_las_zonas()
+        else:
+            print(f"Pedido {pedido.idpedido} no tiene coordenadas, no se puede asignar zona")
         
         return pedido
 
@@ -168,28 +180,6 @@ class PedidosService:
 
         total = sum(item["subtotal"] for item in resultado)
         return {"items": resultado, "total": total}
-
-    def confirmar_pedido(self, id_pedido):
-        pedido = self.db.query(Pedido).filter(Pedido.idpedido == id_pedido).first()
-        if pedido:
-            pedido.estado = "pendiente"
-            pedido.fecha_confirmacion = datetime.now()
-            
-            pedido.codigo_verificacion = random.randint(1000, 9999)
-            
-            if pedido.latitud and pedido.longitud:
-                zona = self.asignar_zona(pedido.latitud, pedido.longitud)
-                pedido.zona = zona
-                
-                self.encolar_pedido(pedido)
-                
-                self.revisar_todas_las_zonas()
-            else:
-                print(f"Pedido {id_pedido} no tiene coordenadas, no se puede asignar zona")
-            
-            self.db.commit()
-            self.db.refresh(pedido)
-        return pedido
 
     def cancelar_pedido(self, id_pedido):
         pedido = self.db.query(Pedido).filter(Pedido.idpedido == id_pedido).first()

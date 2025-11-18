@@ -40,7 +40,6 @@ class RepartidorService:
         
         conn.commit()
         
-        # Obtener teléfono del repartidor
         cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
         repartidor_info = cur.fetchone()
         
@@ -52,15 +51,13 @@ class RepartidorService:
         nombre_repartidor_completo = f"{repartidor_info[1]} {repartidor_info[2]}" if repartidor_info else "N/A"
         print(f"✅ Repartidor {id_repartidor} ({nombre_repartidor_completo}) asignado a Tanda {tanda['id']} (Zona: {tanda['zona']})")
         
-        # CALCULAR Y ENVIAR RUTA AL REPARTIDOR
         try:
             if repartidor_info:
                 telefono_repartidor = repartidor_info[0]
                 nombre_repartidor = f"{repartidor_info[1]} {repartidor_info[2]}"
                 
-                print(f"\n🗺️ Generando ruta para {nombre_repartidor}...")
+                print(f"\n Generando ruta para {nombre_repartidor}...")
                 
-                # Preparar datos de pedidos con coordenadas
                 pedidos_data = []
                 for pedido in tanda["pedidos"]:
                     pedidos_data.append({
@@ -70,10 +67,8 @@ class RepartidorService:
                         'idpedido': pedido.idpedido
                     })
                 
-                # Calcular ruta y generar imagen
                 ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda["id"])
                 
-                # Preparar mensaje para el repartidor
                 mensaje = f"🚚 *Nueva Tanda Asignada #{tanda['id']}*\n\n"
                 mensaje += f"👤 Repartidor: {nombre_repartidor}\n"
                 mensaje += f"📦 Pedidos: {info_ruta['num_entregas']}\n"
@@ -87,7 +82,6 @@ class RepartidorService:
                     mensaje += f"   🔑 Código: *{pedido.codigo_verificacion}*\n"
                 mensaje += "\n📍 La imagen muestra tu ruta óptima de entrega."
                 
-                # Enviar imagen con la ruta (hardcodeado para testing)
                 resultado = enviar_imagen_whatsapp("+59891453663", ruta_imagen, mensaje)
                 
                 if resultado.get('success'):
@@ -95,7 +89,6 @@ class RepartidorService:
                 else:
                     print(f"⚠️ Error enviando ruta: {resultado.get('error')}")
                 
-                # Registrar los KM en el repartidor
                 self.registrar_recorrido(id_repartidor, info_ruta['distancia_km'])
                 
         except Exception as e:
