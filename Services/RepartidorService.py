@@ -49,7 +49,8 @@ class RepartidorService:
         
         self.repartidores_ocupados[id_repartidor] = tanda["id"]
         
-        print(f" Repartidor {id_repartidor} asignado a Tanda {tanda['id']} (Zona: {tanda['zona']})")
+        nombre_repartidor_completo = f"{repartidor_info[1]} {repartidor_info[2]}" if repartidor_info else "N/A"
+        print(f"✅ Repartidor {id_repartidor} ({nombre_repartidor_completo}) asignado a Tanda {tanda['id']} (Zona: {tanda['zona']})")
         
         # CALCULAR Y ENVIAR RUTA AL REPARTIDOR
         try:
@@ -74,17 +75,23 @@ class RepartidorService:
                 
                 # Preparar mensaje para el repartidor
                 mensaje = f"🚚 *Nueva Tanda Asignada #{tanda['id']}*\n\n"
+                mensaje += f"👤 Repartidor: {nombre_repartidor}\n"
                 mensaje += f"📦 Pedidos: {info_ruta['num_entregas']}\n"
                 mensaje += f"📏 Distancia total: {info_ruta['distancia_km']} km\n"
                 mensaje += f"⏱️ Tiempo estimado: {info_ruta['tiempo_min']} min\n"
                 mensaje += f"🗺️ Zona: {tanda['zona']}\n\n"
-                mensaje += "📍 La imagen muestra tu ruta óptima de entrega."
+                mensaje += "📋 *Detalle de entregas:*\n"
+                for idx, pedido in enumerate(tanda["pedidos"], 1):
+                    mensaje += f"\n{idx}. Pedido #{pedido.idpedido}\n"
+                    mensaje += f"   📍 {pedido.direccion}\n"
+                    mensaje += f"   🔑 Código: *{pedido.codigo_verificacion}*\n"
+                mensaje += "\n📍 La imagen muestra tu ruta óptima de entrega."
                 
-                # Enviar imagen con la ruta
-                resultado = enviar_imagen_whatsapp(telefono_repartidor, ruta_imagen, mensaje)
+                # Enviar imagen con la ruta (hardcodeado para testing)
+                resultado = enviar_imagen_whatsapp("+59891453663", ruta_imagen, mensaje)
                 
                 if resultado.get('success'):
-                    print(f"✅ Ruta enviada exitosamente a {nombre_repartidor} ({telefono_repartidor})")
+                    print(f"✅ Ruta enviada exitosamente a +59891453663 (testing - asignado a: {nombre_repartidor})")
                 else:
                     print(f"⚠️ Error enviando ruta: {resultado.get('error')}")
                 

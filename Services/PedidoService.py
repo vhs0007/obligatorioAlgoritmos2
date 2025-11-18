@@ -53,8 +53,8 @@ class PedidosService:
     def debe_crear_tanda(self, zona):
         cola = self.obtener_cola_por_zona(zona)
         
-        if len(cola) >= 7:
-            return True, "7_pedidos"
+        if len(cola) >= 3:
+            return True, "3_pedidos"
         
         if len(cola) > 0:
             primer_pedido = cola[0]
