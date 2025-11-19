@@ -14,14 +14,12 @@ from seed_database import main as seed_main
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
 
-global_pedido_service = None
-
+# Inicializar tablas automáticamente al iniciar el servidor (solo si no existen)
 @app.on_event("startup")
 async def startup_event():
     """Inicializa las tablas de la base de datos al iniciar el servidor."""
-    global global_pedido_service
-    
     try:
+        # Verificar si las tablas ya existen
         with engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT EXISTS (
@@ -37,6 +35,7 @@ async def startup_event():
             init_db()
             print("✅ Tablas creadas correctamente")
             
+            # Ejecutar seeding automáticamente después de crear las tablas
             print("🌱 Ejecutando seeding de datos iniciales...")
             try:
                 seed_main()
@@ -46,9 +45,7 @@ async def startup_event():
         else:
             print("✅ Base de datos ya inicializada")
         
-        db_session = get_db_session()
-        global_pedido_service = PedidosService(db_session)
-        print("🚀 Servicio de pedidos global inicializado")
+        print("🚀 Sistema de colas en memoria inicializado")
         
     except Exception as e:
         print(f"⚠️ Error al verificar/inicializar base de datos: {e}")
@@ -76,6 +73,7 @@ async def health():
 
 @app.get("/init-db")
 async def init_database():
+    """Endpoint para inicializar las tablas manualmente (si no se inicializaron automáticamente)."""
     try:
         init_db()
         return {
@@ -95,6 +93,7 @@ async def init_database():
 
 @app.get("/seed-db")
 async def seed_database():
+    """Endpoint para poblar la base de datos con datos de prueba (categorías, productos, repartidores)."""
     try:
         seed_main()
         return {
@@ -137,11 +136,13 @@ async def receive(request: Request):
         numero, mensaje, tipo = resultado
         print(f"Mensaje recibido ({tipo}) de {numero}: {mensaje}")
 
+        # Crear sesión de DB
         db_session = get_db_session()
         
         try:
             chat_service = ChatService(db_session)
-            pedido_service = global_pedido_service
+            # Las colas se mantienen en memoria como variables de clase
+            pedido_service = PedidosService(db_session)
             producto_service = ProductosService()
             
             id_cliente = ClienteService.obtener_o_crear_cliente("", "", numero)
@@ -159,7 +160,7 @@ async def receive(request: Request):
                 id_cliente=id_cliente,
                 pedido_service=pedido_service,
                 producto_service=producto_service,
-                chat_service=chat_service  
+                chat_service=chat_service  # ✅ Reusar la misma sesión
             )
 
             if tipo in ("text", "interactive"):
@@ -172,12 +173,14 @@ async def receive(request: Request):
             return PlainTextResponse("EVENT_RECEIVED", status_code=200)
         
         finally:
+            # ✅ IMPORTANTE: Cerrar la sesión siempre
             if db_session:
                 db_session.close()
                 print("🔒 Sesión de DB cerrada")
 
     except Exception:
         traceback.print_exc()
+        # Cerrar sesión en caso de error también
         if db_session:
             db_session.close()
             print("🔒 Sesión de DB cerrada (después de error)")

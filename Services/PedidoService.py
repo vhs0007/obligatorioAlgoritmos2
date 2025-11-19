@@ -5,15 +5,21 @@ import math
 import random
 
 class PedidosService:
+    # Variables de clase (compartidas entre todas las instancias)
+    cola_no = []
+    cola_ne = []
+    cola_so = []
+    cola_se = []
+    tandas_creadas = []
+    contador_tandas = 0
+    
     def __init__(self, db_session):
         self.db = db_session
-        self.cola_no = []
-        self.cola_ne = []
-        self.cola_so = []
-        self.cola_se = []
-        self.tandas_creadas = []
-        self.contador_tandas = 0
         self.repartidor_service = RepartidorService()
+        # Mostrar estado de las colas (compartidas entre todas las instancias)
+        total_en_colas = (len(PedidosService.cola_no) + len(PedidosService.cola_ne) + 
+                          len(PedidosService.cola_so) + len(PedidosService.cola_se))
+        print(f"📦 PedidosService inicializado - Pedidos en colas: {total_en_colas} (NO:{len(PedidosService.cola_no)}, NE:{len(PedidosService.cola_ne)}, SO:{len(PedidosService.cola_so)}, SE:{len(PedidosService.cola_se)})")
     
     def asignar_zona(self, pedido_latitud, pedido_longitud):
         ref_latitud = -31.3876594
@@ -79,8 +85,8 @@ class PedidosService:
                 pedido = cola.pop(0)
                 pedidos_tanda.append(pedido)
         
-        self.contador_tandas += 1
-        id_tanda = self.contador_tandas
+        PedidosService.contador_tandas += 1
+        id_tanda = PedidosService.contador_tandas
         
         for pedido in pedidos_tanda:
             pedido.id_tanda = id_tanda
@@ -93,7 +99,7 @@ class PedidosService:
             "creada_en": datetime.now()
         }
         
-        self.tandas_creadas.append(tanda)
+        PedidosService.tandas_creadas.append(tanda)
         
         print(f" Tanda {id_tanda} creada para zona {zona} con {len(pedidos_tanda)} pedidos")
         
@@ -115,10 +121,10 @@ class PedidosService:
         return tandas_creadas
     
     def obtener_tandas_pendientes(self):
-        return self.tandas_creadas
+        return PedidosService.tandas_creadas
     
     def obtener_tanda_por_id(self, id_tanda):
-        for tanda in self.tandas_creadas:
+        for tanda in PedidosService.tandas_creadas:
             if tanda["id"] == id_tanda:
                 return tanda
         return None
