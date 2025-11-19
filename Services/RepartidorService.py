@@ -21,10 +21,13 @@ def simplificar_pedido(tupla):
 
 
 class RepartidorService:
+    # Variables de clase (compartidas entre todas las instancias)
+    # Esto es necesario porque PedidosService crea una nueva instancia en cada request
+    cola_tandas_pendientes = []
+    repartidores_ocupados = {}
     
     def __init__(self):
-        self.cola_tandas_pendientes = []
-        self.repartidores_ocupados = {}
+        pass
     
     def obtener_repartidores_disponibles(self):
         conn = get_db_connection()
@@ -39,7 +42,7 @@ class RepartidorService:
         disponibles = []
         for rep in todos_repartidores:
             id_repartidor = rep[0]
-            if id_repartidor not in self.repartidores_ocupados:
+            if id_repartidor not in RepartidorService.repartidores_ocupados:
                 disponibles.append(rep)
         
         return disponibles
@@ -78,7 +81,7 @@ class RepartidorService:
         cur.close()
         conn.close()
         
-        self.repartidores_ocupados[id_repartidor] = tanda["id"]
+        RepartidorService.repartidores_ocupados[id_repartidor] = tanda["id"]
         
         nombre_repartidor_completo = f"{repartidor_info[1]} {repartidor_info[2]}" if repartidor_info else "N/A"
         print(f"Repartidor {id_repartidor} ({nombre_repartidor_completo}) asignado a Tanda {tanda['id']} (Zona: {tanda['zona']})")
@@ -133,12 +136,15 @@ class RepartidorService:
         repartidores_disponibles = self.obtener_repartidores_disponibles()
         
         if len(repartidores_disponibles) > 0:
-            id_repartidor = repartidores_disponibles[0][0]
+            # Seleccionar repartidor aleatoriamente de los disponibles para distribuir la carga
+            repartidor_elegido = random.choice(repartidores_disponibles)
+            id_repartidor = repartidor_elegido[0]
+            print(f"📋 Asignando Tanda {tanda['id']} a repartidor {id_repartidor} (disponibles: {len(repartidores_disponibles)})")
             self.asignar_tanda_a_repartidor(tanda, id_repartidor)
             return True
         else:
-            self.cola_tandas_pendientes.append(tanda)
-            print(f" Tanda {tanda['id']} encolada (sin repartidores disponibles)")
+            RepartidorService.cola_tandas_pendientes.append(tanda)
+            print(f"⚠️ Tanda {tanda['id']} encolada (sin repartidores disponibles)")
             
             return self.asignar_tanda_aleatoria(tanda)
     
@@ -163,17 +169,17 @@ class RepartidorService:
         return True
     
     def finalizar_tanda(self, id_repartidor):
-        if id_repartidor in self.repartidores_ocupados:
-            tanda_id = self.repartidores_ocupados[id_repartidor]
-            del self.repartidores_ocupados[id_repartidor]
-            print(f" Tanda {tanda_id} finalizada para repartidor {id_repartidor}")
+        if id_repartidor in RepartidorService.repartidores_ocupados:
+            tanda_id = RepartidorService.repartidores_ocupados[id_repartidor]
+            del RepartidorService.repartidores_ocupados[id_repartidor]
+            print(f"✅ Tanda {tanda_id} finalizada para repartidor {id_repartidor}")
             
-            if len(self.cola_tandas_pendientes) > 0:
-                siguiente_tanda = self.cola_tandas_pendientes.pop(0)
+            if len(RepartidorService.cola_tandas_pendientes) > 0:
+                siguiente_tanda = RepartidorService.cola_tandas_pendientes.pop(0)
                 self.asignar_tanda(siguiente_tanda)
     
     def obtener_tandas_pendientes(self):
-        return len(self.cola_tandas_pendientes)
+        return len(RepartidorService.cola_tandas_pendientes)
     
     def obtener_proximo_pedido(self, tanda_id):
         conn = get_db_connection()
@@ -317,7 +323,7 @@ class RepartidorService:
         conn.close()
         return repartidor[0]
 
-    def registrar_recorrido(id_repartidor, km):
+    def registrar_recorrido(self, id_repartidor, km):
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
@@ -328,7 +334,7 @@ class RepartidorService:
         cur.close()
         conn.close()
     
-    def distancia_haversine(lat1, lon1, lat2, lon2):
+    def distancia_haversine(self, lat1, lon1, lat2, lon2):
         R = 6371.0
         
         lat1_rad = math.radians(float(lat1))
@@ -357,7 +363,7 @@ class RepartidorService:
         
         return math.sqrt(lat_km**2 + lon_km**2)
     
-    def calcular_km_ruta(id_repartidor, lista_pedidos):
+    def calcular_km_ruta(self, id_repartidor, lista_pedidos):
         from Util.database import get_db_connection
         
         if not lista_pedidos:
