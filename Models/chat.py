@@ -8,7 +8,7 @@ from Util.database import get_db_session
 from whatsapp_api import enviar_mensaje_whatsapp
 from Util.menus import menu_categorias, mostrar_productos
 from Util.product_util import lista_productos
-from Util.estado import clear_cart, get_estado, reset_estado, get_waiting_for, set_waiting_for, clear_waiting_for
+from Util.estado import clear_cart, get_cart, get_estado, reset_estado, get_waiting_for, set_waiting_for, clear_waiting_for
 
 
 class Chat:
