@@ -423,7 +423,7 @@ class Chat:
         texto = texto.strip()
         partes = texto.split()
         
-        if len(partes) > 2:
+        if len(partes) >= 3:
             try:
                 id_pedido = int(partes[0])
                 codigo = int(partes[1])

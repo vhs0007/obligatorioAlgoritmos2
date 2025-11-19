@@ -79,24 +79,24 @@ def cargar_o_crear_grafo():
     return G
 
 def style_unvisited_edge(edge):
-    G.edges[edge]["color"] = "#000000"   
-    G.edges[edge]["alpha"] = 0.2
+    G.edges[edge]["color"] = "#0000ff"  # Azul claro
+    G.edges[edge]["alpha"] = 0.3
     G.edges[edge]["linewidth"] = 0.5
 
 def style_visited_edge(edge):
-    G.edges[edge]["color"] = "#000000"
-    G.edges[edge]["alpha"] = 1
+    G.edges[edge]["color"] = "#0000ff"  # Azul
+    G.edges[edge]["alpha"] = 0.6
     G.edges[edge]["linewidth"] = 1
 
 def style_active_edge(edge):
-    G.edges[edge]["color"] = "#0000ff"
+    G.edges[edge]["color"] = "#0000ff"  # Azul intenso
     G.edges[edge]["alpha"] = 1
-    G.edges[edge]["linewidth"] = 1
+    G.edges[edge]["linewidth"] = 1.5
 
 def style_path_edge(edge):
-    G.edges[edge]["color"] = "#0000ff"
+    G.edges[edge]["color"] = "#0000ff"  # Azul ruta final
     G.edges[edge]["alpha"] = 1
-    G.edges[edge]["linewidth"] = 1
+    G.edges[edge]["linewidth"] = 2
 
 def plot_graph_to_image(title="", save_frame=False, frame_num=0):
     plt.style.use('dark_background')
@@ -555,12 +555,12 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
     
     print(f"🎨 Generando imagen de ruta: {nombre_archivo}")
     
-    # Inicializar estilos del grafo
+    # Inicializar estilos del grafo (resetear todo)
     for node in G.nodes:
         G.nodes[node]["size"] = 0
     for edge in G.edges:
-        G.edges[edge]["color"] = "#d36206"
-        G.edges[edge]["alpha"] = 0.2
+        G.edges[edge]["color"] = "#0000ff"  # Azul
+        G.edges[edge]["alpha"] = 0.3
         G.edges[edge]["linewidth"] = 0.5
     
     # Convertir coordenadas a nodos
@@ -585,12 +585,12 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
             # Obtener el camino entre estos dos nodos
             ruta_segmento = nx.shortest_path(G, nodo_actual, nodo_siguiente, weight='weight')
             
-            # Colorear las aristas de este segmento
+            # Colorear las aristas de este segmento (ruta destacada)
             for j in range(len(ruta_segmento) - 1):
                 edge = (ruta_segmento[j], ruta_segmento[j+1], 0)
-                G.edges[edge]["color"] = "white"
+                G.edges[edge]["color"] = "#0000ff"  # Azul intenso para la ruta
                 G.edges[edge]["alpha"] = 1
-                G.edges[edge]["linewidth"] = 2
+                G.edges[edge]["linewidth"] = 3
                 
                 # Calcular distancia
                 distancia_total += G.edges[edge]["length"]
@@ -611,10 +611,9 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
         titulo = f"Ruta de Delivery - {len(coordenadas)-1} entregas\n"
         titulo += f"{distancia_km:.2f}km | {tiempo_min:.0f}min"
     
-    # Generar imagen
-    plt.style.use('dark_background')
-    fig, ax = plt.subplots(figsize=(12, 12), facecolor='#000000')
-    ax.set_facecolor('#000000')
+    # Generar imagen con fondo BLANCO
+    fig, ax = plt.subplots(figsize=(12, 12), facecolor='#ffffff')
+    ax.set_facecolor('#ffffff')
     
     ox.plot_graph(
         G,
@@ -623,19 +622,19 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
         edge_color=[G.edges[edge]["color"] for edge in G.edges],
         edge_alpha=[G.edges[edge]["alpha"] for edge in G.edges],
         edge_linewidth=[G.edges[edge]["linewidth"] for edge in G.edges],
-        node_color="white",
-        bgcolor="#000000",
+        node_color="#0000ff",  # Nodos azules
+        bgcolor="#ffffff",  # Fondo blanco
         show=False,
         close=False
     )
     
-    ax.set_title(titulo, color='white', fontsize=16, pad=20)
+    ax.set_title(titulo, color='#0000ff', fontsize=16, pad=20)
     
     # Guardar imagen
     os.makedirs("temp", exist_ok=True)
     ruta_completa = os.path.join("temp", nombre_archivo)
     plt.savefig(ruta_completa, format='png', bbox_inches='tight',
-                facecolor='#000000', edgecolor='none', dpi=100)
+                facecolor='#ffffff', edgecolor='none', dpi=100)
     plt.close()
     
     print(f"✅ Imagen guardada: {ruta_completa}")
