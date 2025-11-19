@@ -114,10 +114,10 @@ class RepartidorService:
                     mensaje += f"   Código: {pedido.codigo_verificacion}\n"
                 mensaje += "\nLa imagen muestra tu ruta óptima de entrega."
                 
-                resultado = enviar_imagen_whatsapp("+59891453663", ruta_imagen, mensaje)
+                resultado = enviar_imagen_whatsapp(telefono_repartidor, ruta_imagen, mensaje)
                 
                 if resultado.get('success'):
-                    print(f" Ruta enviada exitosamente a +59891453663 (testing - asignado a: {nombre_repartidor})")
+                    print(f" Ruta enviada exitosamente a {telefono_repartidor} asignado a: {nombre_repartidor}")
                 else:
                     print(f" Error enviando ruta: {resultado.get('error')}")
                 
@@ -278,7 +278,7 @@ class RepartidorService:
                 mensaje_rep += f"   {p.direccion}\n"
                 mensaje_rep += f"   Código: {p.codigo_verificacion}\n"
             
-            enviar_imagen_whatsapp("+59891453663", ruta_imagen, mensaje_rep)
+            enviar_imagen_whatsapp(repartidor_info[0], ruta_imagen, mensaje_rep)
             print(f"Ruta actualizada enviada al repartidor")
         
         return {
