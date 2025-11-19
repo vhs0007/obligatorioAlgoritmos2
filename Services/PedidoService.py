@@ -48,7 +48,7 @@ class PedidosService:
     def encolar_pedido(self, pedido):
         cola = self.obtener_cola_por_zona(pedido.zona)
         cola.append(pedido)
-        print(f" Pedido {pedido.idpedido} encolado en zona {pedido.zona}. Total en cola: {len(cola)}")
+        print(f"✨ PEDIDO {pedido.idpedido} ENCOLADO en zona {pedido.zona}. Total en cola: {len(cola)} ✨")
     
     def debe_crear_tanda(self, zona):
         cola = self.obtener_cola_por_zona(zona)
@@ -71,7 +71,7 @@ class PedidosService:
         if len(cola) == 0:
             return None
         
-        cantidad = min(7, len(cola))
+        cantidad = min(3, len(cola))
         pedidos_tanda = []
         
         for _ in range(cantidad):
@@ -124,6 +124,8 @@ class PedidosService:
         return None
 
     def crear_pedido(self, id_chat, id_cliente, direccion, latitud=None, longitud=None):
+        print(f"🆕 Creando pedido - Latitud: {latitud}, Longitud: {longitud}, Dirección: {direccion}")
+        
         pedido = Pedido(
             id_chat=id_chat,
             id_cliente=id_cliente,
@@ -138,15 +140,18 @@ class PedidosService:
         self.db.commit()
         self.db.refresh(pedido)
         
+        print(f"✅ Pedido {pedido.idpedido} creado en BD - Latitud: {pedido.latitud}, Longitud: {pedido.longitud}")
+        
         if pedido.latitud and pedido.longitud:
             zona = self.asignar_zona(pedido.latitud, pedido.longitud)
             pedido.zona = zona
+            print(f"📍 Zona asignada para pedido {pedido.idpedido}: {zona}")
             self.db.commit()
             self.encolar_pedido(pedido)
             
             self.revisar_todas_las_zonas()
         else:
-            print(f"Pedido {pedido.idpedido} no tiene coordenadas, no se puede asignar zona")
+            print(f"❌ Pedido {pedido.idpedido} NO tiene coordenadas válidas - Latitud: {pedido.latitud}, Longitud: {pedido.longitud}")
         
         return pedido
 

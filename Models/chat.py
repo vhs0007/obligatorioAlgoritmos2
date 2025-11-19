@@ -370,8 +370,11 @@ class Chat:
             
             estado = get_estado(numero)
             estado["state"] = "pedido_confirmado"
+            cart = get_cart(numero)
+            if cart:
+                clear_cart(numero)
             
-            msg = f"📍 Recibí tu ubicación:\nLatitud: {lat}\nLongitud: {lon}\nTu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')}"
+            msg = f"📍Tu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')} Y Codigo de verificacion: {getattr(pedido, 'codigo_verificacion', 'N/A')}"
             
             self.chat_service.registrar_mensaje(id_chat, msg, es_cliente=False)
             
