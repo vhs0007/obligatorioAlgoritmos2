@@ -53,7 +53,8 @@ class PedidosService:
     
     def encolar_pedido(self, pedido):
         cola = self.obtener_cola_por_zona(pedido.zona)
-        cola.append(pedido)
+        # Guardar solo el ID para evitar problemas de sesión
+        cola.append(pedido.idpedido)
         print(f"✨ PEDIDO {pedido.idpedido} ENCOLADO en zona {pedido.zona}. Total en cola: {len(cola)} ✨")
     
     def debe_crear_tanda(self, zona):
@@ -63,8 +64,10 @@ class PedidosService:
             return True, "3_pedidos"
         
         if len(cola) > 0:
-            primer_pedido = cola[0]
-            if primer_pedido.fecha_confirmacion:
+            # Recuperar el pedido de la BD usando el ID
+            primer_pedido_id = cola[0]
+            primer_pedido = self.db.query(Pedido).filter(Pedido.idpedido == primer_pedido_id).first()
+            if primer_pedido and primer_pedido.fecha_confirmacion:
                 tiempo_espera = datetime.now() - primer_pedido.fecha_confirmacion
                 if tiempo_espera >= timedelta(minutes=45):
                     return True, "45_minutos"
@@ -78,19 +81,26 @@ class PedidosService:
             return None
         
         cantidad = min(3, len(cola))
+        pedidos_ids = []
         pedidos_tanda = []
         
+        # Extraer IDs de la cola
         for _ in range(cantidad):
             if len(cola) > 0:
-                pedido = cola.pop(0)
-                pedidos_tanda.append(pedido)
+                pedido_id = cola.pop(0)
+                pedidos_ids.append(pedido_id)
         
         PedidosService.contador_tandas += 1
         id_tanda = PedidosService.contador_tandas
         
-        for pedido in pedidos_tanda:
-            pedido.id_tanda = id_tanda
-            self.db.commit()
+        # Recuperar los pedidos de la BD y actualizar id_tanda
+        for pedido_id in pedidos_ids:
+            pedido = self.db.query(Pedido).filter(Pedido.idpedido == pedido_id).first()
+            if pedido:
+                pedido.id_tanda = id_tanda
+                pedidos_tanda.append(pedido)
+        
+        self.db.commit()
         
         tanda = {
             "id": id_tanda,
