@@ -32,10 +32,6 @@ GRAFO_CACHE_FILE = os.path.join(CACHE_DIR, "salto_grafo.pkl")
 
 
 def cargar_o_crear_grafo():
-    """
-    Carga el grafo desde cache o lo descarga de OSM si no existe.
-    Esto evita descargar el mapa cada vez (ahorra ~30 segundos).
-    """
     global G
     
     if G is not None:
@@ -83,29 +79,30 @@ def cargar_o_crear_grafo():
     return G
 
 def style_unvisited_edge(edge):
-    G.edges[edge]["color"] = "#d36206"
+    G.edges[edge]["color"] = "#000000"   
     G.edges[edge]["alpha"] = 0.2
     G.edges[edge]["linewidth"] = 0.5
 
 def style_visited_edge(edge):
-    G.edges[edge]["color"] = "#d36206"
+    G.edges[edge]["color"] = "#000000"
     G.edges[edge]["alpha"] = 1
     G.edges[edge]["linewidth"] = 1
 
 def style_active_edge(edge):
-    G.edges[edge]["color"] = '#e8a900'
+    G.edges[edge]["color"] = "#0000ff"
     G.edges[edge]["alpha"] = 1
     G.edges[edge]["linewidth"] = 1
 
 def style_path_edge(edge):
-    G.edges[edge]["color"] = "white"
+    G.edges[edge]["color"] = "#0000ff"
     G.edges[edge]["alpha"] = 1
     G.edges[edge]["linewidth"] = 1
 
 def plot_graph_to_image(title="", save_frame=False, frame_num=0):
     plt.style.use('dark_background')
-    fig, ax = plt.subplots(figsize=(12, 12), facecolor='#000000')
-    ax.set_facecolor('#000000')
+    fig, ax = plt.subplots(figsize=(12, 12), facecolor='#ffffff')
+    ax.set_facecolor('#ffffff')
+
     ox.plot_graph(
         G,
         ax=ax,
@@ -113,18 +110,18 @@ def plot_graph_to_image(title="", save_frame=False, frame_num=0):
         edge_color=[G.edges[edge]["color"] for edge in G.edges],
         edge_alpha=[G.edges[edge]["alpha"] for edge in G.edges],
         edge_linewidth=[G.edges[edge]["linewidth"] for edge in G.edges],
-        node_color="white",
-        bgcolor="#000000",
+        node_color="#0000ff",
+        bgcolor="#ffffff",
         show=False,
         close=False
     )
     clean_title = title.encode('ascii', 'ignore').decode('ascii')
-    ax.set_title(clean_title, color='white', fontsize=16, pad=20)
+    ax.set_title(clean_title, color='blue', fontsize=16, pad=20)
 
     if save_frame:
         buf = io.BytesIO()
         plt.savefig(buf, format='png', bbox_inches='tight',
-                    facecolor='#000000', edgecolor='none', dpi=100)
+                    facecolor='#ffffff', edgecolor='none', dpi=100)
         buf.seek(0)
         img = Image.open(buf).copy()
         frames.append(img)
@@ -132,6 +129,7 @@ def plot_graph_to_image(title="", save_frame=False, frame_num=0):
 
     plt.close()
     return fig
+
 
 def distance(node1, node2):
     x1, y1 = G.nodes[node1]["x"], G.nodes[node1]["y"]

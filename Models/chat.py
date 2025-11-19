@@ -4,6 +4,7 @@ from Services.PedidoService import PedidosService
 from Services.ProductoService import ProductosService
 from Services.ChatService import ChatService
 from Services.ClienteService import ClienteService
+from Services.RepartidorService import RepartidorService
 from Util.database import get_db_session
 from whatsapp_api import enviar_mensaje_whatsapp
 from Util.menus import menu_categorias, mostrar_productos
@@ -137,6 +138,11 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, res["body"])
 
     def handle_text(self, numero, texto):
+        repartidor_service = RepartidorService()
+        repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
+        if repartidor:
+            return self.manejar_mensaje_repartidor(numero, repartidor, texto)
+        
         texto = texto.lower().strip()
         
         if not self.id_chat:
@@ -382,4 +388,39 @@ class Chat:
         except Exception as e:
             print(f"Error en handle_location: {e}")
             return enviar_mensaje_whatsapp(numero, "⚠️ No se pudo procesar la ubicación correctamente.")
+    
+    def manejar_mensaje_repartidor(self, numero, repartidor, texto):
+        texto = texto.strip()
+        partes = texto.split()
+        
+        if len(partes) > 2:
+            try:
+                id_pedido = int(partes[0])
+                codigo = int(partes[1])
+            except ValueError:
+                return enviar_mensaje_whatsapp(numero, "Formato incorrecto. Envía: <id_pedido> <codigo>")
+            
+            repartidor_service = RepartidorService()
+            resultado = repartidor_service.confirmar_entrega(
+                repartidor["id"],
+                id_pedido,
+                codigo
+            )
+            
+            if resultado["success"]:
+                if resultado.get("tanda_finalizada"):
+                    mensaje = f" {resultado['mensaje']}\n\nTanda completada! Sos un capo kick buttowski"
+                else:
+                    mensaje = f" {resultado['mensaje']}\n\n"
+                    mensaje += f"Próximo pedido: #{resultado['proximo_pedido']}\n"
+                    mensaje += f"ETA: {resultado['eta_minutos']} minutos"
+            else:
+                mensaje = f"Error {resultado['mensaje']}"
+            
+            return enviar_mensaje_whatsapp(numero, mensaje)
+        
+        ayuda = "Para confirmar una entrega, envía:\n\n"
+        ayuda += "<id_pedido> <codigo>\n\n"
+        ayuda += "Ejemplo: 123 4567"
+        return enviar_mensaje_whatsapp(numero, ayuda)
 

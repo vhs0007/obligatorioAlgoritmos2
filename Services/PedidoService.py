@@ -5,7 +5,6 @@ import math
 import random
 
 class PedidosService:
-    # Variables de clase (compartidas entre todas las instancias)
     cola_no = []
     cola_ne = []
     cola_so = []
@@ -16,7 +15,6 @@ class PedidosService:
     def __init__(self, db_session):
         self.db = db_session
         self.repartidor_service = RepartidorService()
-        # Mostrar estado de las colas (compartidas entre todas las instancias)
         total_en_colas = (len(PedidosService.cola_no) + len(PedidosService.cola_ne) + 
                           len(PedidosService.cola_so) + len(PedidosService.cola_se))
         print(f"📦 PedidosService inicializado - Pedidos en colas: {total_en_colas} (NO:{len(PedidosService.cola_no)}, NE:{len(PedidosService.cola_ne)}, SO:{len(PedidosService.cola_so)}, SE:{len(PedidosService.cola_se)})")
@@ -53,9 +51,8 @@ class PedidosService:
     
     def encolar_pedido(self, pedido):
         cola = self.obtener_cola_por_zona(pedido.zona)
-        # Guardar solo el ID para evitar problemas de sesión
         cola.append(pedido.idpedido)
-        print(f"✨ PEDIDO {pedido.idpedido} ENCOLADO en zona {pedido.zona}. Total en cola: {len(cola)} ✨")
+        print(f"pedido {pedido.idpedido} encolado en zona {pedido.zona}. Total en cola: {len(cola)}")
     
     def debe_crear_tanda(self, zona):
         cola = self.obtener_cola_por_zona(zona)
@@ -64,7 +61,6 @@ class PedidosService:
             return True, "3_pedidos"
         
         if len(cola) > 0:
-            # Recuperar el pedido de la BD usando el ID
             primer_pedido_id = cola[0]
             primer_pedido = self.db.query(Pedido).filter(Pedido.idpedido == primer_pedido_id).first()
             if primer_pedido and primer_pedido.fecha_confirmacion:
@@ -84,7 +80,6 @@ class PedidosService:
         pedidos_ids = []
         pedidos_tanda = []
         
-        # Extraer IDs de la cola
         for _ in range(cantidad):
             if len(cola) > 0:
                 pedido_id = cola.pop(0)
@@ -93,7 +88,6 @@ class PedidosService:
         PedidosService.contador_tandas += 1
         id_tanda = PedidosService.contador_tandas
         
-        # Recuperar los pedidos de la BD y actualizar id_tanda
         for pedido_id in pedidos_ids:
             pedido = self.db.query(Pedido).filter(Pedido.idpedido == pedido_id).first()
             if pedido:
@@ -140,7 +134,7 @@ class PedidosService:
         return None
 
     def crear_pedido(self, id_chat, id_cliente, direccion, latitud=None, longitud=None):
-        print(f"🆕 Creando pedido - Latitud: {latitud}, Longitud: {longitud}, Dirección: {direccion}")
+        print(f"Creando pedido - Latitud: {latitud}, Longitud: {longitud}, Dirección: {direccion}")
         
         pedido = Pedido(
             id_chat=id_chat,
@@ -156,18 +150,18 @@ class PedidosService:
         self.db.commit()
         self.db.refresh(pedido)
         
-        print(f"✅ Pedido {pedido.idpedido} creado en BD - Latitud: {pedido.latitud}, Longitud: {pedido.longitud}")
+        print(f"Pedido {pedido.idpedido} creado en BD - Latitud: {pedido.latitud}, Longitud: {pedido.longitud}")
         
         if pedido.latitud and pedido.longitud:
             zona = self.asignar_zona(pedido.latitud, pedido.longitud)
             pedido.zona = zona
-            print(f"📍 Zona asignada para pedido {pedido.idpedido}: {zona}")
+            print(f"Zona asignada para pedido {pedido.idpedido}: {zona}")
             self.db.commit()
             self.encolar_pedido(pedido)
             
             self.revisar_todas_las_zonas()
         else:
-            print(f"❌ Pedido {pedido.idpedido} NO tiene coordenadas válidas - Latitud: {pedido.latitud}, Longitud: {pedido.longitud}")
+            print(f"Pedido {pedido.idpedido} NO tiene coordenadas válidas - Latitud: {pedido.latitud}, Longitud: {pedido.longitud}")
         
         return pedido
 
