@@ -33,8 +33,8 @@ def enviar_mensaje_whatsapp(numero, mensaje):
         data = mensaje  
 
     response = requests.post(url, headers=headers, json=data)
-    print(f"➡️ Enviado a {numero}")
-    print("📨 Estado:", response.status_code)
+    print(f" Enviado a {numero}")
+    print(" Estado:", response.status_code)
 
     try:
         res_json = response.json()
@@ -43,7 +43,7 @@ def enviar_mensaje_whatsapp(numero, mensaje):
             "error": res_json.get("error"),
         }
     except Exception as e:
-        print("⚠️ Error al interpretar la respuesta:", e)
+        print(" Error", e)
         return {"success": False, "error": str(e)}
 
 

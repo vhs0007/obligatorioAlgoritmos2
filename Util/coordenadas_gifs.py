@@ -79,22 +79,22 @@ def cargar_o_crear_grafo():
     return G
 
 def style_unvisited_edge(edge):
-    G.edges[edge]["color"] = "#0000ff"  # Azul claro
+    G.edges[edge]["color"] = "#0000ff" 
     G.edges[edge]["alpha"] = 0.3
     G.edges[edge]["linewidth"] = 0.5
 
 def style_visited_edge(edge):
-    G.edges[edge]["color"] = "#0000ff"  # Azul
+    G.edges[edge]["color"] = "#0000ff"  
     G.edges[edge]["alpha"] = 0.6
     G.edges[edge]["linewidth"] = 1
 
 def style_active_edge(edge):
-    G.edges[edge]["color"] = "#0000ff"  # Azul intenso
+    G.edges[edge]["color"] = "#0000ff"  
     G.edges[edge]["alpha"] = 1
     G.edges[edge]["linewidth"] = 1.5
 
 def style_path_edge(edge):
-    G.edges[edge]["color"] = "#0000ff"  # Azul ruta final
+    G.edges[edge]["color"] = "#0000ff"  
     G.edges[edge]["alpha"] = 1
     G.edges[edge]["linewidth"] = 2
 
@@ -655,7 +655,7 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> T
     Returns:
         (ruta_imagen, info_dict) donde info_dict contiene distancia, tiempo, orden
     """
-    print(f"\n{'='*60}")
+    print(f"{'='*60}")
     print(f"🚚 CALCULANDO RUTA PARA TANDA #{id_tanda}")
     print(f"{'='*60}")
     
@@ -689,12 +689,12 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> T
         'ruta_imagen': ruta_imagen
     }
     
-    print(f"\n✅ RUTA CALCULADA EXITOSAMENTE")
+    print(f"✅ RUTA CALCULADA EXITOSAMENTE")
     print(f"   📊 Distancia total: {distancia_km:.2f} km")
     print(f"   ⏱️ Tiempo estimado: {tiempo_min:.0f} minutos")
     print(f"   📍 Orden de entrega: {' → '.join(['Restaurante'] + [f'Cliente {i}' for i in range(1, len(orden_visita))])}")
     print(f"   🖼️ Imagen: {ruta_imagen}")
-    print(f"{'='*60}\n")
+    print(f"{'='*60}")
     
     return ruta_imagen, info
 

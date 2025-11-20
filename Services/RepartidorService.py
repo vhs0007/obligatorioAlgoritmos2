@@ -21,8 +21,6 @@ def simplificar_pedido(tupla):
 
 
 class RepartidorService:
-    # Variables de clase (compartidas entre todas las instancias)
-    # Esto es necesario porque PedidosService crea una nueva instancia en cada request
     cola_tandas_pendientes = []
     repartidores_ocupados = {}
     
@@ -136,7 +134,6 @@ class RepartidorService:
         repartidores_disponibles = self.obtener_repartidores_disponibles()
         
         if len(repartidores_disponibles) > 0:
-            # Seleccionar repartidor aleatoriamente de los disponibles para distribuir la carga
             repartidor_elegido = random.choice(repartidores_disponibles)
             id_repartidor = repartidor_elegido[0]
             print(f"📋 Asignando Tanda {tanda['id']} a repartidor {id_repartidor} (disponibles: {len(repartidores_disponibles)})")
@@ -172,7 +169,7 @@ class RepartidorService:
         if id_repartidor in RepartidorService.repartidores_ocupados:
             tanda_id = RepartidorService.repartidores_ocupados[id_repartidor]
             del RepartidorService.repartidores_ocupados[id_repartidor]
-            print(f"✅ Tanda {tanda_id} finalizada para repartidor {id_repartidor}")
+            print(f" Tanda {tanda_id} finalizada para repartidor {id_repartidor}")
             
             if len(RepartidorService.cola_tandas_pendientes) > 0:
                 siguiente_tanda = RepartidorService.cola_tandas_pendientes.pop(0)
@@ -245,8 +242,9 @@ class RepartidorService:
         mensaje_cliente += f"Llega en: {int(tiempo_min)} minutos\n\n"
         mensaje_cliente += f"Código de verificación: {proximo_pedido.codigo_verificacion}"
         
-        enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
-        print(f"Cliente notificado: {proximo_pedido.id_chat}")
+        if proximo_pedido.estado != "entregado":
+            enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
+            print(f"Cliente notificado: {proximo_pedido.id_chat}")
         
         cur.execute("""
             SELECT idpedido, id_chat, id_cliente, id_repartidor, direccion, 
@@ -274,21 +272,33 @@ class RepartidorService:
                 nombre_archivo=f"tanda_{tanda_id}_act.png",
                 info_tanda={'id_tanda': tanda_id, 'num_pedidos': len(pedidos_pendientes)}
             )
+            print(f"\n Generando ruta para {nombre_repartidor}...")
+                
+            pedidos_data = []
+            for pedido in pedidos_pendientes:
+                 pedidos_data.append({
+                    'latitud': pedido.latitud,
+                    'longitud': pedido.longitud,
+                    'direccion': pedido.direccion,
+                    'idpedido': pedido.idpedido
+                })
+                
+            ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda_id)
             
-            mensaje_rep = f"Ruta Actualizada - Tanda #{tanda_id}\n\n"
-            mensaje_rep += f"Entregado: Pedido #{id_pedido}\n"
-            mensaje_rep += f"Pendientes: {len(pedidos_pendientes)}\n\n"
-            mensaje_rep += "Próximas entregas:\n"
-            for idx, p in enumerate(pedidos_pendientes, 1):
-                mensaje_rep += f"\n{idx}. Pedido #{p.idpedido}\n"
-                mensaje_rep += f"   {p.direccion}\n"
-                mensaje_rep += f"   Código: {p.codigo_verificacion}\n"
+            mensaje_rep = f"Ruta Actualizada - Tanda #{tanda_id}"
+            mensaje_rep += f"Entregado: Pedido #{id_pedido}"
+            mensaje_rep += f"Pendientes: {len(pedidos_pendientes)}"
+            mensaje_rep += "Próximas entregas:"
+            for i, p in enumerate(pedidos_pendientes, 1):
+                mensaje_rep += f"{i}. Pedido #{p.idpedido}"
+                mensaje_rep += f"   {p.direccion}"
+                mensaje_rep += f"   Código: {p.codigo_verificacion}"
             
+            mensaje_rep += ruta_imagen
             enviar_imagen_whatsapp(repartidor_info[0], ruta_imagen, mensaje_rep)
             print(f"Ruta actualizada enviada al repartidor")
         
         return {
-            "success": True,
             "mensaje": "Entrega confirmada",
             "proximo_pedido": proximo_pedido.idpedido,
             "eta_minutos": int(tiempo_min)

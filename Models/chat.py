@@ -138,15 +138,11 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, res["body"])
 
     def handle_text(self, numero, texto):
-        # Modo testing repartidor: detectar palabra clave #soy_repartidor
         if texto.strip().startswith("#soy_repartidor"):
-            # Extraer id_pedido del mensaje para obtener el repartidor real asignado
-            # Formato: "#soy_repartidor <id_pedido> <codigo>"
             partes = texto.strip().split()
             if len(partes) >= 3:
                 try:
                     id_pedido = int(partes[1])
-                    # Obtener el repartidor REAL asignado a este pedido
                     from Util.database import get_db_connection
                     conn = get_db_connection()
                     cur = conn.cursor()
@@ -167,7 +163,6 @@ class Chat:
             else:
                 return enviar_mensaje_whatsapp(numero, "Formato: #soy_repartidor <id_pedido> <codigo>\nEjemplo: #soy_repartidor 123 4567")
         
-        # Flujo normal: verificar si es repartidor real
         repartidor_service = RepartidorService()
         repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
         if repartidor:
@@ -381,6 +376,7 @@ class Chat:
     def flujo_confirmacion(self, numero, mensaje):
         if mensaje in ("cancelar", "salir"):
             self.clear_state(numero)
+            clear_cart(numero)
             return enviar_mensaje_whatsapp(numero, "❌ Pedido cancelado.")
 
         if self.es_ubicacion(mensaje):
