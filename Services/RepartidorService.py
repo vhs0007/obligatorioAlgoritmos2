@@ -242,9 +242,8 @@ class RepartidorService:
         mensaje_cliente += f"Llega en: {int(tiempo_min)} minutos\n\n"
         mensaje_cliente += f"Código de verificación: {proximo_pedido.codigo_verificacion}"
         
-        if proximo_pedido.estado != "entregado":
-            enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
-            print(f"Cliente notificado: {proximo_pedido.id_chat}")
+        enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
+        print(f"Cliente notificado: {proximo_pedido.id_chat}")
         
         cur.execute("""
             SELECT idpedido, id_chat, id_cliente, id_repartidor, direccion, 
@@ -253,6 +252,9 @@ class RepartidorService:
             WHERE id_tanda = %s AND estado != 'entregado'
             ORDER BY idpedido
         """, (tanda_id,))
+
+        cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
+        repartidor_info = cur.fetchone()
         
         pedidos_pendientes_base = cur.fetchall()
         cur.close()
@@ -272,7 +274,7 @@ class RepartidorService:
                 nombre_archivo=f"tanda_{tanda_id}_act.png",
                 info_tanda={'id_tanda': tanda_id, 'num_pedidos': len(pedidos_pendientes)}
             )
-            print(f"\n Generando ruta para {nombre_repartidor}...")
+            print(f"\n Generando ruta")
                 
             pedidos_data = []
             for pedido in pedidos_pendientes:
@@ -285,6 +287,8 @@ class RepartidorService:
                 
             ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda_id)
             
+            telefono_repartidor = repartidor_info[0]
+
             mensaje_rep = f"Ruta Actualizada - Tanda #{tanda_id}"
             mensaje_rep += f"Entregado: Pedido #{id_pedido}"
             mensaje_rep += f"Pendientes: {len(pedidos_pendientes)}"
@@ -294,8 +298,13 @@ class RepartidorService:
                 mensaje_rep += f"   {p.direccion}"
                 mensaje_rep += f"   Código: {p.codigo_verificacion}"
             
-            mensaje_rep += ruta_imagen
-            enviar_imagen_whatsapp(repartidor_info[0], ruta_imagen, mensaje_rep)
+            print("SE MANDO EL MAPA AL REPARTIDOOOOOOOOOR ////////////////////")
+            resultado = enviar_imagen_whatsapp(repartidor_info[0], ruta_imagen, mensaje_rep)
+            
+            if resultado.get('success'):
+                print(f" Ruta enviada exitosamente a {telefono_repartidor}")
+            else:
+                print(f" Error enviando ruta: {resultado.get('error')}")
             print(f"Ruta actualizada enviada al repartidor")
         
         return {

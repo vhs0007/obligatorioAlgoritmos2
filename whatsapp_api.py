@@ -48,28 +48,15 @@ def enviar_mensaje_whatsapp(numero, mensaje):
 
 
 def enviar_imagen_whatsapp(numero, ruta_imagen, caption=""):
-    """
-    Envía una imagen por WhatsApp.
-    
-    Args:
-        numero: Número de teléfono del destinatario
-        ruta_imagen: Ruta local al archivo de imagen
-        caption: Texto opcional que acompaña la imagen
-    
-    Returns:
-        dict con 'success' y opcionalmente 'error'
-    """
     url = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
         "Content-Type": "application/json",
     }
     
-    # Primero subir la imagen a WhatsApp
-    media_url = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/media"
+    _imagen = f"{WHATSAPP_API_URL}/{WHATSAPP_PHONE_NUMBER_ID}/media"
     
     try:
-        # Leer la imagen
         with open(ruta_imagen, 'rb') as img_file:
             files = {
                 'file': (os.path.basename(ruta_imagen), img_file, 'image/png'),
@@ -79,25 +66,23 @@ def enviar_imagen_whatsapp(numero, ruta_imagen, caption=""):
                 "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
             }
             
-            # Subir imagen
             print(f"📤 Subiendo imagen: {ruta_imagen}")
-            upload_response = requests.post(media_url, headers=upload_headers, files=files)
+            respuesta = requests.post(_imagen, headers=upload_headers, files=files)
             
-            if upload_response.status_code != 200:
-                print(f"❌ Error subiendo imagen: {upload_response.status_code}")
-                print(f"   Respuesta: {upload_response.text}")
-                return {"success": False, "error": f"Error al subir imagen: {upload_response.text}"}
+            if respuesta.status_code != 200:
+                print(f"❌ Error subiendo imagen: {respuesta.status_code}")
+                print(f"   Respuesta: {respuesta.text}")
+                return {"success": False, "error": f"Error al subir imagen: {respuesta.text}"}
             
-            media_id = upload_response.json().get("id")
-            print(f"✅ Imagen subida. Media ID: {media_id}")
+            _imagen = respuesta.json().get("id")
+            print(f"✅ Imagen subida. Media ID: {_imagen}")
         
-        # Enviar mensaje con la imagen
         data = {
             "messaging_product": "whatsapp",
             "to": numero,
             "type": "image",
             "image": {
-                "id": media_id
+                "id": _imagen
             }
         }
         

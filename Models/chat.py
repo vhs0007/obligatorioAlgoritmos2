@@ -421,8 +421,8 @@ class Chat:
         
         if len(partes) >= 2:
             try:
-                id_pedido = int(partes[0])
-                codigo = int(partes[1])
+                id_pedido = int(partes[1])
+                codigo = int(partes[2])
             except ValueError:
                 return enviar_mensaje_whatsapp(numero, "Formato incorrecto. Envía: <id_pedido> <codigo>")
             

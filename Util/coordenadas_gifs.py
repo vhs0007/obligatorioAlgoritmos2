@@ -606,10 +606,10 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
     # Crear título
     if info_tanda:
         titulo = f"Tanda #{info_tanda.get('id_tanda', '?')} - {len(coordenadas)-1} entregas\n"
-        titulo += f"Distancia: {distancia_km:.2f}km | Tiempo estimado: {tiempo_min:.0f}min | Vel. prom: {velocidad_promedio:.0f}km/h"
+        titulo += f"Distancia: {distancia_km:.2f}km | Tiempo estimado: {tiempo_min}min | Vel. prom: {velocidad_promedio}km/h"
     else:
         titulo = f"Ruta de Delivery - {len(coordenadas)-1} entregas\n"
-        titulo += f"{distancia_km:.2f}km | {tiempo_min:.0f}min"
+        titulo += f"{distancia_km:.2f}km | {tiempo_min} min"
     
     # Generar imagen con fondo BLANCO
     fig, ax = plt.subplots(figsize=(12, 12), facecolor='#ffffff')
@@ -637,29 +637,17 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
                 facecolor='#ffffff', edgecolor='none', dpi=100)
     plt.close()
     
-    print(f"✅ Imagen guardada: {ruta_completa}")
-    print(f"   📏 {distancia_km:.2f}km | ⏱️ {tiempo_min:.0f}min")
+    print(f" Imagen guardada: {ruta_completa}")
+    print(f" {distancia_km:.2f}km |  {tiempo_min} min")
     
     return ruta_completa
 
 
 def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> Tuple[str, dict]:
-    """
-    Función principal para calcular ruta de una tanda y generar imagen.
-    ESTA ES LA FUNCIÓN QUE SE LLAMA DESDE RepartidorService.
-    
-    Args:
-        pedidos_tanda: Lista de dicts con keys 'latitud' y 'longitud'
-        id_tanda: ID de la tanda
-    
-    Returns:
-        (ruta_imagen, info_dict) donde info_dict contiene distancia, tiempo, orden
-    """
     print(f"{'='*60}")
     print(f"🚚 CALCULANDO RUTA PARA TANDA #{id_tanda}")
     print(f"{'='*60}")
     
-    # Preparar coordenadas: [restaurante, cliente1, cliente2, ...]
     coordenadas = [(RESTAURANTE_LAT, RESTAURANTE_LON)]
     
     for i, pedido in enumerate(pedidos_tanda):
@@ -668,10 +656,8 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> T
         coordenadas.append((lat, lon))
         print(f"   Pedido {i+1}: ({lat:.4f}, {lon:.4f}) - {pedido.get('direccion', 'Sin dirección')}")
     
-    # Calcular ruta óptima (TSP)
     orden_visita, distancia_km, tiempo_min = calcular_ruta_tsp(coordenadas)
     
-    # Generar imagen
     info_tanda = {
         'id_tanda': id_tanda,
         'num_pedidos': len(pedidos_tanda)
@@ -680,7 +666,6 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> T
     nombre_archivo = f"tanda_{id_tanda}_ruta.png"
     ruta_imagen = generar_imagen_ruta_delivery(coordenadas, orden_visita, nombre_archivo, info_tanda)
     
-    # Preparar info de retorno
     info = {
         'distancia_km': round(distancia_km, 2),
         'tiempo_min': round(tiempo_min, 0),
@@ -691,7 +676,7 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> T
     
     print(f"✅ RUTA CALCULADA EXITOSAMENTE")
     print(f"   📊 Distancia total: {distancia_km:.2f} km")
-    print(f"   ⏱️ Tiempo estimado: {tiempo_min:.0f} minutos")
+    print(f"   ⏱️ Tiempo estimado: {tiempo_min} minutos")
     print(f"   📍 Orden de entrega: {' → '.join(['Restaurante'] + [f'Cliente {i}' for i in range(1, len(orden_visita))])}")
     print(f"   🖼️ Imagen: {ruta_imagen}")
     print(f"{'='*60}")
