@@ -62,7 +62,6 @@ def handle_interactive(numero, interactive):
     return None
 
 def manejar_seleccion_pedido(numero, seleccion_id):
-    # Import lazy para evitar import circular
     from Services.RepartidorService import RepartidorService
     
     id_pedido = int(seleccion_id.replace("pedido_", ""))

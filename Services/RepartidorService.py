@@ -47,19 +47,30 @@ class RepartidorService:
         return disponibles
     
     def obtener_repartidor_por_telefono(self, telefono):
+        telefono = str(telefono).strip().replace("+", "")
+        
+        solo_digitos = "".join(ch for ch in telefono if ch.isdigit())
+
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        cur.execute("SELECT idrepartidor FROM repartidor WHERE telefono = %s", (telefono,))
+
+        cur.execute("""
+            SELECT idrepartidor, telefono
+            FROM repartidor
+            WHERE REPLACE(REPLACE(REPLACE(telefono, '+', ''), ' ', ''), '-', '') LIKE %s
+            LIMIT 1
+        """, (f"%{solo_digitos}",))
+
         resultado = cur.fetchone()
-        
+
         cur.close()
         conn.close()
-        
+
         if resultado:
-            return {
-                "id": resultado[0],
-            }
+            print(f"[debug] Repartidor encontrado: DB={resultado[1]} input={solo_digitos}")
+            return {"id": resultado[0]}
+
+        print(f"[debug] No se encontró repartidor para número limpio={solo_digitos}")
         return None
     
     def asignar_tanda_a_repartidor(self, tanda, id_repartidor):

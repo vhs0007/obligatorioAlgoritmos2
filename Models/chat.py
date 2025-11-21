@@ -142,6 +142,7 @@ class Chat:
         if texto.strip().startswith("pedido_"):
             repartidor_service = RepartidorService()
             repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
+            print(f"Repartidor: {repartidor}")
             if repartidor:
                 interactive = {
                     "type": "list_reply",
@@ -152,7 +153,6 @@ class Chat:
                 resultado = handle_interactive(numero, interactive)
                 if resultado:
                     return resultado
-        
         
         texto = texto.lower().strip()
         
