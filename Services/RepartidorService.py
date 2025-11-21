@@ -264,51 +264,51 @@ class RepartidorService:
         cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
         repartidor_info = cur.fetchone()
         
+        if pedidos_pendientes_base and repartidor_info:
+            pedidos_pendientes = [simplificar_pedido(t) for t in pedidos_pendientes_base]
+
+            pedidos_data = [{
+                'latitud': p.latitud,
+                'longitud': p.longitud,
+                'direccion': p.direccion,
+                'idpedido': p.idpedido
+            } for p in pedidos_pendientes]
+
+            ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda_id)
+            
+            telefono_repartidor = repartidor_info[0]
+
+            mensaje_rep = (
+                f"Ruta Actualizada - Tanda #{tanda_id}\n\n"
+                f"Entregado: Pedido #{id_pedido}\n"
+                f"Pendientes: {len(pedidos_pendientes)}\n\n"
+                f"Próximas entregas:\n"
+            )
+            
+            for i, p in enumerate(pedidos_pendientes, 1):
+                mensaje_rep += (
+                    f"\n{i}. Pedido #{p.idpedido}\n"
+                    f"   {p.direccion}\n"
+                    f"   Código: {p.codigo_verificacion}"
+                )
+
+            print("SE MANDO EL MAPA AL REPARTIDOR ////////////////////")
+            
+            pedidos_para_menu = [{
+                'idpedido': p.idpedido,
+                'direccion': p.direccion
+            } for p in pedidos_pendientes]
+
+            enviar_actualizacion_repartidor(
+                telefono_repartidor,
+                pedidos_para_menu,
+                ruta_imagen,
+                mensaje_rep
+            )
+        
         cur.close()
         conn.close()
-    
-    if pedidos_pendientes_base and repartidor_info:
-        pedidos_pendientes = [simplificar_pedido(t) for t in pedidos_pendientes_base]
-
-        pedidos_data = [{
-            'latitud': p.latitud,
-            'longitud': p.longitud,
-            'direccion': p.direccion,
-            'idpedido': p.idpedido
-        } for p in pedidos_pendientes]
-
-        ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda_id)
         
-        telefono_repartidor = repartidor_info[0]
-
-        mensaje_rep = (
-            f"Ruta Actualizada - Tanda #{tanda_id}\n\n"
-            f"Entregado: Pedido #{id_pedido}\n"
-            f"Pendientes: {len(pedidos_pendientes)}\n\n"
-            f"Próximas entregas:\n"
-        )
-        
-        for i, p in enumerate(pedidos_pendientes, 1):
-            mensaje_rep += (
-                f"\n{i}. Pedido #{p.idpedido}\n"
-                f"   {p.direccion}\n"
-                f"   Código: {p.codigo_verificacion}"
-            )
-
-        print("SE MANDO EL MAPA AL REPARTIDOR ////////////////////")
-        
-        pedidos_para_menu = [{
-            'idpedido': p.idpedido,
-            'direccion': p.direccion
-        } for p in pedidos_pendientes]
-
-        enviar_actualizacion_repartidor(
-            telefono_repartidor,
-            pedidos_para_menu,
-            ruta_imagen,
-            mensaje_rep
-        )
-    
         return {
             "success": True,
             "mensaje": "Entrega confirmada",
