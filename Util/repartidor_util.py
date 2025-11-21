@@ -1,5 +1,4 @@
-from whatsapp_api import enviar_mensaje_whatsapp
-from Services.RepartidorService import RepartidorService
+from whatsapp_api import enviar_mensaje_whatsapp, enviar_imagen_whatsapp
 from Util.database import get_db_connection
 
 def obtener_pedidos_pendientes_repartidor(id_repartidor):
@@ -63,6 +62,9 @@ def handle_interactive(numero, interactive):
     return None
 
 def manejar_seleccion_pedido(numero, seleccion_id):
+    # Import lazy para evitar import circular
+    from Services.RepartidorService import RepartidorService
+    
     id_pedido = int(seleccion_id.replace("pedido_", ""))
 
     repartidor_service = RepartidorService()
