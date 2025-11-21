@@ -309,12 +309,12 @@ class RepartidorService:
             mensaje_rep
         )
     
-    return {
-        "success": True,
-        "mensaje": "Entrega confirmada",
-        "proximo_pedido": proximo_pedido.idpedido,
-        "eta_minutos": int(tiempo_min)
-    }
+        return {
+            "success": True,
+            "mensaje": "Entrega confirmada",
+            "proximo_pedido": proximo_pedido.idpedido,
+            "eta_minutos": int(tiempo_min)
+        }
 
 
     def asignar_repartidor(id_pedido, zona):
