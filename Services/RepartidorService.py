@@ -126,7 +126,7 @@ class RepartidorService:
                 
         except Exception as e:
             print(f" Error calculando/enviando ruta: {e}")
-            print("   Continuando sin ruta...")
+            print("Continuando sin ruta...")
         
         return True
     

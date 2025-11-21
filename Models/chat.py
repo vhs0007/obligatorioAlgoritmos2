@@ -395,6 +395,14 @@ class Chat:
             if not (pedido_service and id_cliente and id_chat):
                 return enviar_mensaje_whatsapp(numero, "⚠️ Faltan datos para crear el pedido. Intentalo de nuevo.")
 
+            detalle_carrito = pedido_service.detalle_carrito(numero)
+            total = detalle_carrito.get('total', 0)
+            
+            if total <= 250:
+                mensaje_error = f"El pedido mínimo es de $250. Tu pedido actual es de ${total:.2f}. Agregá más productos para completar tu pedido."
+                self.chat_service.registrar_mensaje(id_chat, mensaje_error, es_cliente=False)
+                return enviar_mensaje_whatsapp(numero, mensaje_error)
+
             self.chat_service.registrar_mensaje(id_chat, f"Ubicación: {lat}, {lon}", es_cliente=True)
             
             pedido = pedido_service.crear_pedido(id_chat=id_chat, id_cliente=id_cliente, direccion=direccion, latitud=lat, longitud=lon)
