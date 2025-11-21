@@ -20,25 +20,19 @@ def obtener_categorias():
         db.close()
 
 def menu_categorias(numero, pagina=1):
-    """
-    Muestra las categorías paginadas (máximo 9 por página para cumplir límite de WhatsApp).
-    """
     estado = get_estado(numero)
     categorias = obtener_categorias()
     
-    # Máximo 9 categorías por página (límite de WhatsApp)
     items_por_pagina = 9
     total_categorias = len(categorias)
-    total_paginas = (total_categorias + items_por_pagina - 1) // items_por_pagina if total_categorias > 0 else 1
+    total_paginas = (total_categorias + items_por_pagina - 1) 
     
     inicio = (pagina - 1) * items_por_pagina
     fin = inicio + items_por_pagina
     categorias_pagina = categorias[inicio:fin]
     
-    # Construir filas de la lista
     rows = [{"id": c["id"], "title": c["nombre"]} for c in categorias_pagina]
     
-    # Agregar opciones de navegación si es necesario
     if pagina < total_paginas:
         rows.append({"id": "cat_next", "title": "➡️ Siguiente"})
     
@@ -48,7 +42,6 @@ def menu_categorias(numero, pagina=1):
     if pagina > 2:
         rows.append({"id": "cat_home", "title": "🏠 Volver al Inicio"})
     
-    # Actualizar estado
     estado["cat_page"] = pagina
     
     secciones = [{

@@ -1,6 +1,7 @@
 from Util.database import get_db_connection, Pedido
 from Util.coordenadas_gifs import calcular_y_generar_ruta_tanda, calcular_ruta_simple, generar_imagen_ruta_delivery
 from whatsapp_api import enviar_imagen_whatsapp, enviar_mensaje_whatsapp
+from Util.repartidor_util import enviar_actualizacion_repartidor
 import math
 import random
 
@@ -115,12 +116,17 @@ class RepartidorService:
                     mensaje += f"   Código: {pedido.codigo_verificacion}\n"
                 mensaje += "\nLa imagen muestra tu ruta óptima de entrega."
                 
-                resultado = enviar_imagen_whatsapp(telefono_repartidor, ruta_imagen, mensaje)
-                
-                if resultado.get('success'):
-                    print(f" Ruta enviada exitosamente a {telefono_repartidor} asignado a: {nombre_repartidor}")
-                else:
-                    print(f" Error enviando ruta: {resultado.get('error')}")
+                pedidos_para_menu = [{
+                    'idpedido': p.idpedido,
+                    'direccion': p.direccion
+                } for p in tanda["pedidos"]]
+
+                enviar_actualizacion_repartidor(
+                    telefono_repartidor,
+                    pedidos_para_menu,
+                    ruta_imagen,
+                    mensaje
+                )
                 
                 self.registrar_recorrido(id_repartidor, info_ruta['distancia_km'])
                 
@@ -199,119 +205,122 @@ class RepartidorService:
             return simplificar_pedido(resultado)
         return None
     
-    def confirmar_entrega(self, id_repartidor, id_pedido, codigo_ingresado):
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        cur.execute("SELECT codigo_verificacion, id_tanda, id_chat, latitud, longitud FROM pedido WHERE idpedido = %s", (id_pedido,))
-        pedido_info = cur.fetchone()
-        
-        if not pedido_info:
-            cur.close()
-            conn.close()
-            return {"success": False, "mensaje": "Pedido no encontrado"}
-        
-        codigo_correcto, tanda_id, id_chat, lat_actual, lon_actual = pedido_info
-        
-        if int(codigo_ingresado) != int(codigo_correcto):
-            cur.close()
-            conn.close()
-            return {"success": False, "mensaje": f"Código incorrecto"}
-        
-        cur.execute("UPDATE pedido SET estado = 'entregado' WHERE idpedido = %s", (id_pedido,))
-        conn.commit()
-        print(f"Pedido {id_pedido} entregado")
-        
-        proximo_pedido = self.obtener_proximo_pedido(tanda_id)
-        
-        if not proximo_pedido:
-            print(f"Tanda {tanda_id} completada")
-            self.finalizar_tanda(id_repartidor)
-            cur.close()
-            conn.close()
-            return {"success": True, "mensaje": "Tanda completada", "tanda_finalizada": True}
-        
-        _, distancia_km, tiempo_min = calcular_ruta_simple(
-            float(lat_actual), float(lon_actual),
-            float(proximo_pedido.latitud), float(proximo_pedido.longitud)
-        )
-        
-        mensaje_cliente = f"Tu pedido está en camino!\n\n"
-        mensaje_cliente += f"Pedido #{proximo_pedido.idpedido}\n"
-        mensaje_cliente += f"{proximo_pedido.direccion}\n"
-        mensaje_cliente += f"Llega en: {int(tiempo_min)} minutos\n\n"
-        mensaje_cliente += f"Código de verificación: {proximo_pedido.codigo_verificacion}"
-        
-        enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
-        print(f"Cliente notificado: {proximo_pedido.id_chat}")
-        
-        cur.execute("""
-            SELECT idpedido, id_chat, id_cliente, id_repartidor, direccion, 
-                   latitud, longitud, estado, codigo_verificacion, id_tanda
-            FROM pedido 
-            WHERE id_tanda = %s AND estado != 'entregado'
-            ORDER BY idpedido
-        """, (tanda_id,))
-        pedidos_pendientes_base = cur.fetchall()
-
-        cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
-        repartidor_info = cur.fetchone()
-        
+   def confirmar_entrega(self, id_repartidor, id_pedido, codigo_ingresado):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        SELECT codigo_verificacion, id_tanda, id_chat, latitud, longitud 
+        FROM pedido 
+        WHERE idpedido = %s
+    """, (id_pedido,))
+    pedido_info = cur.fetchone()
+    
+    if not pedido_info:
         cur.close()
         conn.close()
-        
-        if pedidos_pendientes_base and repartidor_info:
-            pedidos_pendientes = [simplificar_pedido(t) for t in pedidos_pendientes_base]
-            
-            coordenadas = [(float(lat_actual), float(lon_actual))]
-            for p in pedidos_pendientes:
-                coordenadas.append((float(p.latitud), float(p.longitud)))
-            
-            orden_visita = list(range(len(coordenadas)))
-            ruta_imagen = generar_imagen_ruta_delivery(
-                coordenadas, 
-                orden_visita,
-                nombre_archivo=f"tanda_{tanda_id}_act.png",
-                info_tanda={'id_tanda': tanda_id, 'num_pedidos': len(pedidos_pendientes)}
-            )
-            print(f"\n Generando ruta")
-                
-            pedidos_data = []
-            for pedido in pedidos_pendientes:
-                 pedidos_data.append({
-                    'latitud': pedido.latitud,
-                    'longitud': pedido.longitud,
-                    'direccion': pedido.direccion,
-                    'idpedido': pedido.idpedido
-                })
-                
-            ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda_id)
-            
-            telefono_repartidor = repartidor_info[0]
+        return {"success": False, "mensaje": "Pedido no encontrado"}
+    
+    codigo_correcto, tanda_id, id_chat, lat_actual, lon_actual = pedido_info
+    
+    if int(codigo_ingresado) != int(codigo_correcto):
+        cur.close()
+        conn.close()
+        return {"success": False, "mensaje": "Código incorrecto"}
+    
+    cur.execute("UPDATE pedido SET estado = 'entregado' WHERE idpedido = %s", (id_pedido,))
+    conn.commit()
+    print(f"Pedido {id_pedido} entregado")
+    
+    proximo_pedido = self.obtener_proximo_pedido(tanda_id)
+    
+    if not proximo_pedido:
+        print(f"Tanda {tanda_id} completada")
+        self.finalizar_tanda(id_repartidor)
+        cur.close()
+        conn.close()
+        return {"success": True, "mensaje": "Tanda completada", "tanda_finalizada": True}
+    
+    _, distancia_km, tiempo_min = calcular_ruta_simple(
+        float(lat_actual), float(lon_actual),
+        float(proximo_pedido.latitud), float(proximo_pedido.longitud)
+    )
+    
+    mensaje_cliente = (
+        f"Tu pedido está en camino!\n\n"
+        f"Pedido #{proximo_pedido.idpedido}\n"
+        f"{proximo_pedido.direccion}\n"
+        f"Llega en: {int(tiempo_min)} minutos\n\n"
+        f"Código de verificación: {proximo_pedido.codigo_verificacion}"
+    )
+    
+    enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
+    print(f"Cliente notificado: {proximo_pedido.id_chat}")
+    
+    cur.execute("""
+        SELECT idpedido, id_chat, id_cliente, id_repartidor, direccion, 
+               latitud, longitud, estado, codigo_verificacion, id_tanda
+        FROM pedido 
+        WHERE id_tanda = %s AND estado != 'entregado'
+        ORDER BY idpedido
+    """, (tanda_id,))
+    pedidos_pendientes_base = cur.fetchall()
 
-            mensaje_rep = f"Ruta Actualizada - Tanda #{tanda_id}\n\n"
-            mensaje_rep += f"Entregado: Pedido #{id_pedido}\n"
-            mensaje_rep += f"Pendientes: {len(pedidos_pendientes)}\n\n"
-            mensaje_rep += "Próximas entregas:\n"
-            for i, p in enumerate(pedidos_pendientes, 1):
-                mensaje_rep += f"\n{i}. Pedido #{p.idpedido}\n"
-                mensaje_rep += f"   {p.direccion}\n"
-                mensaje_rep += f"   Código: {p.codigo_verificacion}"
-            
-            print("SE MANDO EL MAPA AL REPARTIDOOOOOOOOOR ////////////////////")
-            resultado = enviar_imagen_whatsapp(repartidor_info[0], ruta_imagen, mensaje_rep)
-            
-            if resultado.get('success'):
-                print(f" Ruta enviada exitosamente a {telefono_repartidor}")
-            else:
-                print(f" Error enviando ruta: {resultado.get('error')}")
-            print(f"Ruta actualizada enviada al repartidor")
+    cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
+    repartidor_info = cur.fetchone()
+    
+    cur.close()
+    conn.close()
+    
+    if pedidos_pendientes_base and repartidor_info:
+        pedidos_pendientes = [simplificar_pedido(t) for t in pedidos_pendientes_base]
+
+        pedidos_data = [{
+            'latitud': p.latitud,
+            'longitud': p.longitud,
+            'direccion': p.direccion,
+            'idpedido': p.idpedido
+        } for p in pedidos_pendientes]
+
+        ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedidos_data, tanda_id)
         
-        return {
-            "mensaje": "Entrega confirmada",
-            "proximo_pedido": proximo_pedido.idpedido,
-            "eta_minutos": int(tiempo_min)
-        }
+        telefono_repartidor = repartidor_info[0]
+
+        mensaje_rep = (
+            f"Ruta Actualizada - Tanda #{tanda_id}\n\n"
+            f"Entregado: Pedido #{id_pedido}\n"
+            f"Pendientes: {len(pedidos_pendientes)}\n\n"
+            f"Próximas entregas:\n"
+        )
+        
+        for i, p in enumerate(pedidos_pendientes, 1):
+            mensaje_rep += (
+                f"\n{i}. Pedido #{p.idpedido}\n"
+                f"   {p.direccion}\n"
+                f"   Código: {p.codigo_verificacion}"
+            )
+
+        print("SE MANDO EL MAPA AL REPARTIDOR ////////////////////")
+        
+        pedidos_para_menu = [{
+            'idpedido': p.idpedido,
+            'direccion': p.direccion
+        } for p in pedidos_pendientes]
+
+        enviar_actualizacion_repartidor(
+            telefono_repartidor,
+            pedidos_para_menu,
+            ruta_imagen,
+            mensaje_rep
+        )
+    
+    return {
+        "success": True,
+        "mensaje": "Entrega confirmada",
+        "proximo_pedido": proximo_pedido.idpedido,
+        "eta_minutos": int(tiempo_min)
+    }
+
 
     def asignar_repartidor(id_pedido, zona):
         conn = get_db_connection()

@@ -10,6 +10,7 @@ from whatsapp_api import enviar_mensaje_whatsapp
 from Util.menus import menu_categorias, mostrar_productos
 from Util.product_util import lista_productos
 from Util.estado import clear_cart, get_cart, get_estado, reset_estado, get_waiting_for, set_waiting_for, clear_waiting_for
+from Util.repartidor_util import handle_interactive
 
 
 class Chat:
@@ -138,35 +139,20 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, res["body"])
 
     def handle_text(self, numero, texto):
-        if texto.strip().startswith("#soy_repartidor"):
-            partes = texto.strip().split()
-            if len(partes) >= 3:
-                try:
-                    id_pedido = int(partes[1])
-                    from Util.database import get_db_connection
-                    conn = get_db_connection()
-                    cur = conn.cursor()
-                    cur.execute("SELECT id_repartidor FROM pedido WHERE idpedido = %s", (id_pedido,))
-                    resultado = cur.fetchone()
-                    cur.close()
-                    conn.close()
-                    
-                    if resultado and resultado[0]:
-                        id_repartidor_real = resultado[0]
-                        texto_limpio = f"{partes[1]} {partes[2]}"
-                        repartidor_testing = {"id": id_repartidor_real}
-                        return self.manejar_mensaje_repartidor(numero, repartidor_testing, texto_limpio)
-                    else:
-                        return enviar_mensaje_whatsapp(numero, f"El pedido #{id_pedido} no tiene repartidor asignado")
-                except ValueError:
-                    return enviar_mensaje_whatsapp(numero, "Formato: #soy_repartidor <id_pedido> <codigo>\nEjemplo: #soy_repartidor 123 4567")
-            else:
-                return enviar_mensaje_whatsapp(numero, "Formato: #soy_repartidor <id_pedido> <codigo>\nEjemplo: #soy_repartidor 123 4567")
+        if texto.strip().startswith("pedido_"):
+            repartidor_service = RepartidorService()
+            repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
+            if repartidor:
+                interactive = {
+                    "type": "list_reply",
+                    "list_reply": {
+                        "id": texto.strip()
+                    }
+                }
+                resultado = handle_interactive(numero, interactive)
+                if resultado:
+                    return resultado
         
-        repartidor_service = RepartidorService()
-        repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
-        if repartidor:
-            return self.manejar_mensaje_repartidor(numero, repartidor, texto)
         
         texto = texto.lower().strip()
         
@@ -424,6 +410,8 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, "⚠️ No se pudo procesar la ubicación correctamente.")
     
     def manejar_mensaje_repartidor(self, numero, repartidor, texto):
+        from Util.repartidor_util import menu_pedidos_repartidor, obtener_pedidos_pendientes_repartidor
+        
         texto = texto.strip()
         partes = texto.split()
         
@@ -444,17 +432,20 @@ class Chat:
             if resultado["success"]:
                 if resultado.get("tanda_finalizada"):
                     mensaje = f" {resultado['mensaje']}\n\nTanda completada! Sos un capo kick buttowski"
+                    return enviar_mensaje_whatsapp(numero, mensaje)
                 else:
                     mensaje = f" {resultado['mensaje']}\n\n"
                     mensaje += f"Próximo pedido: #{resultado['proximo_pedido']}\n"
                     mensaje += f"ETA: {resultado['eta_minutos']} minutos"
+                    return enviar_mensaje_whatsapp(numero, mensaje)
             else:
                 mensaje = f"Error {resultado['mensaje']}"
-            
-            return enviar_mensaje_whatsapp(numero, mensaje)
+                return enviar_mensaje_whatsapp(numero, mensaje)
         
-        ayuda = "Para confirmar una entrega, envía:\n\n"
-        ayuda += "<id_pedido> <codigo>\n\n"
-        ayuda += "Ejemplo: 123 4567"
-        return enviar_mensaje_whatsapp(numero, ayuda)
+        # En lugar de pedir texto, enviar interactive con pedidos pendientes
+        pedidos = obtener_pedidos_pendientes_repartidor(repartidor["id"])
+        if not pedidos:
+            return enviar_mensaje_whatsapp(numero, "No tenés pedidos pendientes en este momento.")
+        
+        return menu_pedidos_repartidor(numero, pedidos)
 
