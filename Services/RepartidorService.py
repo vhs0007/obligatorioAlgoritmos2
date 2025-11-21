@@ -252,15 +252,15 @@ class RepartidorService:
             WHERE id_tanda = %s AND estado != 'entregado'
             ORDER BY idpedido
         """, (tanda_id,))
+        pedidos_pendientes_base = cur.fetchall()
 
         cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
         repartidor_info = cur.fetchone()
         
-        pedidos_pendientes_base = cur.fetchall()
         cur.close()
         conn.close()
         
-        if pedidos_pendientes_base:
+        if pedidos_pendientes_base and repartidor_info:
             pedidos_pendientes = [simplificar_pedido(t) for t in pedidos_pendientes_base]
             
             coordenadas = [(float(lat_actual), float(lon_actual))]
@@ -289,13 +289,13 @@ class RepartidorService:
             
             telefono_repartidor = repartidor_info[0]
 
-            mensaje_rep = f"Ruta Actualizada - Tanda #{tanda_id}"
-            mensaje_rep += f"Entregado: Pedido #{id_pedido}"
-            mensaje_rep += f"Pendientes: {len(pedidos_pendientes)}"
-            mensaje_rep += "Próximas entregas:"
+            mensaje_rep = f"Ruta Actualizada - Tanda #{tanda_id}\n\n"
+            mensaje_rep += f"Entregado: Pedido #{id_pedido}\n"
+            mensaje_rep += f"Pendientes: {len(pedidos_pendientes)}\n\n"
+            mensaje_rep += "Próximas entregas:\n"
             for i, p in enumerate(pedidos_pendientes, 1):
-                mensaje_rep += f"{i}. Pedido #{p.idpedido}"
-                mensaje_rep += f"   {p.direccion}"
+                mensaje_rep += f"\n{i}. Pedido #{p.idpedido}\n"
+                mensaje_rep += f"   {p.direccion}\n"
                 mensaje_rep += f"   Código: {p.codigo_verificacion}"
             
             print("SE MANDO EL MAPA AL REPARTIDOOOOOOOOOR ////////////////////")
