@@ -263,7 +263,6 @@ class RepartidorService:
 
         cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
         repartidor_info = cur.fetchone()
-        
         if pedidos_pendientes_base and repartidor_info:
             pedidos_pendientes = [simplificar_pedido(t) for t in pedidos_pendientes_base]
 
@@ -347,6 +346,8 @@ class RepartidorService:
         return repartidor[0]
 
     def registrar_recorrido(self, id_repartidor, km):
+        km = float(km)  
+
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
@@ -356,7 +357,7 @@ class RepartidorService:
         conn.commit()
         cur.close()
         conn.close()
-    
+
     def distancia_haversine(self, lat1, lon1, lat2, lon2):
         R = 6371.0
         
