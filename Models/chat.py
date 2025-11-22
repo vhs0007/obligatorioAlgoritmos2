@@ -141,17 +141,25 @@ class Chat:
 
     def handle_text(self, numero, texto):
        
-        if texto.strip().startswith("pedido_"):
+        if texto.strip().startswith("pedido_") or texto.strip().startswith("entregado_"):
             repartidor_service = RepartidorService()
             repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
             print(f"Repartidor: {repartidor}")
             if repartidor:
-                interactive = {
-                    "type": "list_reply",
-                    "list_reply": {
-                        "id": texto.strip()
+                if texto.strip().startswith("entregado_"):
+                    interactive = {
+                        "type": "button_reply",
+                        "button_reply": {
+                            "id": texto.strip()
+                        }
                     }
-                }
+                else:
+                    interactive = {
+                        "type": "list_reply",
+                        "list_reply": {
+                            "id": texto.strip()
+                        }
+                    }
                 resultado = handle_interactive(numero, interactive)
                 
                 return resultado

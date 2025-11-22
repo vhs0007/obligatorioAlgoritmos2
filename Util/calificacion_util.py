@@ -1,62 +1,66 @@
-from whatsapp_api import enviar_mensaje_whatsapp
+from whatsapp_api import enviar_mensaje_whatsapp, normalizar_numero_telefono
 from Util.database import get_db_connection, Calificacion, UsuarioCalificacion
 from sqlmodel import Session, select
 from Util.database import get_db_session
 
 def enviar_solicitud_calificacion(numero_cliente):
-   
+    numero_cliente_normalizado = normalizar_numero_telefono(numero_cliente)
+    
+    rows = [
+        {
+            "id": "calificar_1",
+            "title": "⭐ 1 estrella",
+            "description": "Muy malo"
+        },
+        {
+            "id": "calificar_2",
+            "title": "⭐⭐ 2 estrellas",
+            "description": "Malo"
+        },
+        {
+            "id": "calificar_3",
+            "title": "⭐⭐⭐ 3 estrellas",
+            "description": "Regular"
+        },
+        {
+            "id": "calificar_4",
+            "title": "⭐⭐⭐⭐ 4 estrellas",
+            "description": "Bueno"
+        },
+        {
+            "id": "calificar_5",
+            "title": "⭐⭐⭐⭐⭐ 5 estrellas",
+            "description": "Excelente"
+        }
+    ]
+    
     payload = {
         "messaging_product": "whatsapp",
-        "to": numero_cliente,
+        "to": numero_cliente_normalizado,
         "type": "interactive",
         "interactive": {
-            "type": "button",
+            "type": "list",
+            "header": {
+                "type": "text",
+                "text": "⭐ Califica nuestro servicio"
+            },
             "body": {
-                "text": "¿Cómo calificarías nuestro servicio? ⭐"
+                "text": "¿Cómo calificarías nuestro servicio?"
+            },
+            "footer": {
+                "text": "Selecciona una opción"
             },
             "action": {
-                "buttons": [
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "calificar_1",
-                            "title": "⭐ 1"
-                        }
-                    },
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "calificar_2",
-                            "title": "⭐⭐ 2"
-                        }
-                    },
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "calificar_3",
-                            "title": "⭐⭐⭐ 3"
-                        }
-                    },
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "calificar_4",
-                            "title": "⭐⭐⭐⭐ 4"
-                        }
-                    },
-                    {
-                        "type": "reply",
-                        "reply": {
-                            "id": "calificar_5",
-                            "title": "⭐⭐⭐⭐⭐ 5"
-                        }
-                    }
-                ]
+                "button": "Ver opciones",
+                "sections": [{
+                    "title": "Calificación",
+                    "rows": rows
+                }]
             }
         }
     }
     
-    resultado = enviar_mensaje_whatsapp(numero_cliente, payload)
+    resultado = enviar_mensaje_whatsapp(numero_cliente_normalizado, payload)
     return resultado
 
 
@@ -68,16 +72,14 @@ def manejar_calificacion(numero, calificacion_id):
         if len(partes) < 2:
             return enviar_mensaje_whatsapp(numero, "Error al procesar la calificación. Por favor, intenta nuevamente.")
         
-        estrellas = int(partes[1])  # X
+        estrellas = int(partes[1])  
         
         if estrellas < 1 or estrellas > 5:
             return enviar_mensaje_whatsapp(numero, "Calificación inválida. Por favor, selecciona entre 1 y 5 estrellas.")
         
-        # Obtener id_cliente del número de teléfono
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Normalizar número de teléfono para búsqueda
         numero_limpio = numero.strip().replace("+", "").replace(" ", "").replace("-", "")
         cur.execute("SELECT idcliente FROM cliente WHERE REPLACE(REPLACE(REPLACE(telefono, '+', ''), ' ', ''), '-', '') LIKE %s", (f"%{numero_limpio}",))
         cliente_info = cur.fetchone()

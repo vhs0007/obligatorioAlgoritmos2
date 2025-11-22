@@ -74,12 +74,18 @@ def handle_interactive(numero, interactive):
     if interactive["type"] == "list_reply":
         seleccion = interactive["list_reply"]["id"]
         return manejar_seleccion_pedido(numero, seleccion)
+    elif interactive["type"] == "button_reply":
+        seleccion = interactive["button_reply"]["id"]
+        return manejar_seleccion_pedido(numero, seleccion)
     return None
 
 def manejar_seleccion_pedido(numero, seleccion_id):
     from Services.RepartidorService import RepartidorService
     
-    id_pedido = int(seleccion_id.replace("pedido_", ""))
+    if seleccion_id.startswith("entregado_"):
+        id_pedido = int(seleccion_id.replace("entregado_", ""))
+    else:
+        id_pedido = int(seleccion_id.replace("pedido_", ""))
 
     repartidor_service = RepartidorService()
     repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
@@ -102,40 +108,37 @@ def manejar_seleccion_pedido(numero, seleccion_id):
     resultado = RepartidorService().confirmar_entrega(
         repartidor["id"], id_pedido, codigo
     )
-
-    if resultado.get("tanda_finalizada"):
-        return enviar_mensaje_whatsapp(numero, "🎉 Tanda completada! Sos un crack Kick Buttowski🙌")
     
     return None
 
-def enviar_actualizacion_repartidor(telefono, pedidos, ruta_imagen, mensaje):
-
+def enviar_actualizacion_repartidor(telefono, pedido, ruta_imagen, mensaje):
     if ruta_imagen:
         enviar_imagen_whatsapp(telefono, ruta_imagen, mensaje)
 
-    if not pedidos:
+    if not pedido:
         enviar_mensaje_whatsapp(telefono, "No tenés más pedidos pendientes Flander🙌")
         return
-
-    rows = [{
-        "id": f"pedido_{p['idpedido']}",
-        "title": f"Pedido #{p['idpedido']}",
-        "description": p["direccion"]
-    } for p in pedidos]
 
     payload = {
         "messaging_product": "whatsapp",
         "to": telefono,
         "type": "interactive",
         "interactive": {
-            "type": "list",
-            "header": {"type": "text", "text": "📦 Pedidos pendientes"},
-            "body": {"text": "Elegí el pedido que acabás de entregar:"},
-            "footer": {"text": "Seleccioná un pedido"},
-            "action": {"button": "Ver pedidos", "sections": [{
-                "title": "Pendientes",
-                "rows": rows
-            }]},
+            "type": "button",
+            "header": {"type": "text", "text": f"📦 Pedido #{pedido['idpedido']}"},
+            "body": {
+                "text": f"{pedido.get('direccion', 'Sin dirección')}\n\nCódigo: {pedido.get('codigo_verificacion', 'N/A')}\n\nPresioná 'Entregado' cuando completes la entrega:"
+            },
+            "footer": {"text": "Confirmá la entrega"},
+            "action": {
+                "buttons": [{
+                    "type": "reply",
+                    "reply": {
+                        "id": f"entregado_{pedido['idpedido']}",
+                        "title": "✅ Entregado"
+                    }
+                }]
+            }
         },
     }
 
