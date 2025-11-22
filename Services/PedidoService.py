@@ -65,8 +65,8 @@ class PedidosService:
             primer_pedido = self.db.query(Pedido).filter(Pedido.idpedido == primer_pedido_id).first()
             if primer_pedido and primer_pedido.fecha_confirmacion:
                 tiempo_espera = datetime.now() - primer_pedido.fecha_confirmacion
-                if tiempo_espera >= timedelta(minutes=5):
-                    return True, "5_minutos"
+                if tiempo_espera >= timedelta(minutes=2):
+                    return True, "2_minutos"
         
         return False, None
     
