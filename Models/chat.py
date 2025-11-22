@@ -11,6 +11,7 @@ from Util.menus import menu_categorias, mostrar_productos
 from Util.product_util import lista_productos
 from Util.estado import clear_cart, get_cart, get_estado, reset_estado, get_waiting_for, set_waiting_for, clear_waiting_for
 from Util.repartidor_util import handle_interactive
+from Util.calificacion_util import manejar_calificacion
 
 
 class Chat:
@@ -153,6 +154,9 @@ class Chat:
                 resultado = handle_interactive(numero, interactive)
                 if resultado:
                     return resultado
+        
+        if texto.strip().startswith("calificar_"):
+            return manejar_calificacion(numero, texto.strip())
         
         texto = texto.lower().strip()
         
@@ -316,7 +320,7 @@ class Chat:
         estado = get_estado(numero)
         estado["state"] = "en_carrito"
         
-        respuesta = f"✅ {cantidad} agregado(s) al carrito.\nEscribí *carrito* para ver tu pedido o *menu* para volver."
+        respuesta = f"✅ {cantidad} agregado(s) al carrito.\nEscribí *carrito* para ver tu pedido"
         self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
         
         return enviar_mensaje_whatsapp(numero, respuesta)
@@ -398,6 +402,7 @@ class Chat:
             estado["state"] = "pedido_confirmado"
             cart = get_cart(numero)
             if cart:
+                estado["state"] = "viendo_categorias"
                 clear_cart(numero)
             
             msg = f"📍Tu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')} Y Codigo de verificacion: {getattr(pedido, 'codigo_verificacion', 'N/A')}"

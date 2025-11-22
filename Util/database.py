@@ -82,6 +82,18 @@ class Mensaje(SQLModel, table=True):
     fecha_envio: Optional[datetime] = Field(default_factory=datetime.now)
 
 
+class Calificacion(SQLModel, table=True):
+    id_calificacion: Optional[int] = Field(default=None, primary_key=True)
+    estrellas: int = Field(ge=1, le=5)  
+    fecha_calificacion: Optional[datetime] = Field(default_factory=datetime.now)
+
+
+class UsuarioCalificacion(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    id_calificacion: int = Field(foreign_key="calificacion.id_calificacion")
+    id_cliente: int = Field(foreign_key="cliente.idcliente")
+
+
 def get_db_session():
     try:
         return Session(engine)

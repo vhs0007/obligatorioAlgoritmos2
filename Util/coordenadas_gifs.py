@@ -611,7 +611,6 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
         titulo = f"Ruta de Delivery - {len(coordenadas)-1} entregas\n"
         titulo += f"{distancia_km:.2f}km | {tiempo_min} min"
     
-    # Generar imagen con fondo BLANCO
     fig, ax = plt.subplots(figsize=(12, 12), facecolor='#ffffff')
     ax.set_facecolor('#ffffff')
     
@@ -622,15 +621,14 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
         edge_color=[G.edges[edge]["color"] for edge in G.edges],
         edge_alpha=[G.edges[edge]["alpha"] for edge in G.edges],
         edge_linewidth=[G.edges[edge]["linewidth"] for edge in G.edges],
-        node_color="#0000ff",  # Nodos azules
-        bgcolor="#ffffff",  # Fondo blanco
+        node_color="#0000ff",  
+        bgcolor="#ffffff",  
         show=False,
         close=False
     )
     
     ax.set_title(titulo, color='#0000ff', fontsize=16, pad=20)
     
-    # Guardar imagen
     os.makedirs("temp", exist_ok=True)
     ruta_completa = os.path.join("temp", nombre_archivo)
     plt.savefig(ruta_completa, format='png', bbox_inches='tight',
@@ -645,27 +643,56 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
 
 def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> Tuple[str, dict]:
     print(f"{'='*60}")
-    print(f"🚚 CALCULANDO RUTA PARA TANDA #{id_tanda}")
+    print(f"CALCULANDO RUTA PARA TANDA #{id_tanda}")
     print(f"{'='*60}")
-    
-    coordenadas = [(RESTAURANTE_LAT, RESTAURANTE_LON)]
-    
-    for i, pedido in enumerate(pedidos_tanda):
+
+    def obtener_coord_seguras(pedido):
         lat = float(pedido.get('latitud', pedido.get('lat', 0)))
         lon = float(pedido.get('longitud', pedido.get('lon', 0)))
-        coordenadas.append((lat, lon))
-        print(f"   Pedido {i+1}: ({lat:.4f}, {lon:.4f}) - {pedido.get('direccion', 'Sin dirección')}")
-    
+
+        if lat == 0 or lon == 0:
+            raise ValueError(
+                f"❌ ERROR: Pedido {pedido.get('idpedido')} tiene coordenadas inválidas "
+                f"({lat}, {lon}). No se puede calcular la ruta."
+            )
+
+        return lat, lon
+
+    if len(pedidos_tanda) < 3:
+        primer_pedido = pedidos_tanda[0]
+        lat_inicial, lon_inicial = obtener_coord_seguras(primer_pedido)
+
+        coordenadas = [(lat_inicial, lon_inicial)]
+        print(f"   Punto inicial: Repartidor en ruta - Pedido 1 ({lat_inicial:.4f}, {lon_inicial:.4f})")
+
+        for i, pedido in enumerate(pedidos_tanda[1:], start=2):
+            lat, lon = obtener_coord_seguras(pedido)
+            coordenadas.append((lat, lon))
+            print(f"   Pedido {i}: ({lat:.4f}, {lon:.4f}) - {pedido.get('direccion', 'Sin dirección')}")
+
+  
+    else:
+        if RESTAURANTE_LAT == 0 or RESTAURANTE_LON == 0:
+            raise ValueError("❌ ERROR: Las coordenadas del restaurante no pueden ser 0,0.")
+
+        coordenadas = [(RESTAURANTE_LAT, RESTAURANTE_LON)]
+        print(f"   Punto inicial: Restaurante ({RESTAURANTE_LAT:.4f}, {RESTAURANTE_LON:.4f})")
+
+        for i, pedido in enumerate(pedidos_tanda, start=1):
+            lat, lon = obtener_coord_seguras(pedido)
+            coordenadas.append((lat, lon))
+            print(f"   Pedido {i}: ({lat:.4f}, {lon:.4f}) - {pedido.get('direccion', 'Sin dirección')}")
+
     orden_visita, distancia_km, tiempo_min = calcular_ruta_tsp(coordenadas)
-    
+
     info_tanda = {
         'id_tanda': id_tanda,
         'num_pedidos': len(pedidos_tanda)
     }
-    
+
     nombre_archivo = f"tanda_{id_tanda}_ruta.png"
     ruta_imagen = generar_imagen_ruta_delivery(coordenadas, orden_visita, nombre_archivo, info_tanda)
-    
+
     info = {
         'distancia_km': round(distancia_km, 2),
         'tiempo_min': round(tiempo_min, 0),
@@ -673,15 +700,16 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int) -> T
         'num_entregas': len(pedidos_tanda),
         'ruta_imagen': ruta_imagen
     }
-    
+
     print(f"✅ RUTA CALCULADA EXITOSAMENTE")
     print(f"   📊 Distancia total: {distancia_km:.2f} km")
     print(f"   ⏱️ Tiempo estimado: {tiempo_min} minutos")
     print(f"   📍 Orden de entrega: {' → '.join(['Restaurante'] + [f'Cliente {i}' for i in range(1, len(orden_visita))])}")
     print(f"   🖼️ Imagen: {ruta_imagen}")
     print(f"{'='*60}")
-    
+
     return ruta_imagen, info
+
 
 
 if __name__ == "__main__":

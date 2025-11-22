@@ -2,6 +2,7 @@ from Util.database import get_db_connection, Pedido
 from Util.coordenadas_gifs import calcular_y_generar_ruta_tanda, calcular_ruta_simple, generar_imagen_ruta_delivery
 from whatsapp_api import enviar_imagen_whatsapp, enviar_mensaje_whatsapp
 from Util.repartidor_util import enviar_actualizacion_repartidor
+from Util.calificacion_util import enviar_solicitud_calificacion
 import math
 import random
 
@@ -94,7 +95,6 @@ class RepartidorService:
         
         RepartidorService.repartidores_ocupados[id_repartidor] = tanda["id"]
         
-        # Agregar entrada a TandasActuales con todos los IDs de pedidos de la tanda
         pedidos_ids = [pedido.idpedido for pedido in tanda["pedidos"]]
         RepartidorService.TandasActuales.append({
             "id_repartidor": id_repartidor,
@@ -191,7 +191,6 @@ class RepartidorService:
             tanda_id = RepartidorService.repartidores_ocupados[id_repartidor]
             del RepartidorService.repartidores_ocupados[id_repartidor]
             
-            # Remover entrada de TandasActuales
             RepartidorService.TandasActuales = [
                 tanda for tanda in RepartidorService.TandasActuales 
                 if tanda["id_repartidor"] != id_repartidor
@@ -207,7 +206,6 @@ class RepartidorService:
         return len(RepartidorService.cola_tandas_pendientes)
     
     def obtener_proximo_pedido(self, tanda_id):
-        # Buscar la tanda en TandasActuales
         tanda_actual = None
         for tanda in RepartidorService.TandasActuales:
             if tanda["id_tanda"] == tanda_id:
@@ -217,10 +215,8 @@ class RepartidorService:
         if not tanda_actual or not tanda_actual["pedidos_ids"]:
             return None
         
-        # Obtener el primer pedido_id de la lista
         id_pedido = tanda_actual["pedidos_ids"][0]
         
-        # Consultar BD solo para obtener datos completos del pedido
         conn = get_db_connection()
         cur = conn.cursor()
         
@@ -244,7 +240,7 @@ class RepartidorService:
         cur = conn.cursor()
         
         cur.execute("""
-            SELECT codigo_verificacion, id_tanda, id_chat, latitud, longitud 
+            SELECT codigo_verificacion, id_tanda, id_chat, id_cliente, latitud, longitud 
             FROM pedido 
             WHERE idpedido = %s
         """, (id_pedido,))
@@ -255,7 +251,7 @@ class RepartidorService:
             conn.close()
             return {"success": False, "mensaje": "Pedido no encontrado"}
         
-        codigo_correcto, tanda_id, id_chat, lat_actual, lon_actual = pedido_info
+        codigo_correcto, tanda_id, id_chat, id_cliente, lat_actual, lon_actual = pedido_info
         
         if int(codigo_ingresado) != int(codigo_correcto):
             cur.close()
@@ -266,7 +262,13 @@ class RepartidorService:
         conn.commit()
         print(f"Pedido {id_pedido} entregado")
         
-        # Actualizar TandasActuales: remover el pedido entregado
+        cur.execute("SELECT telefono FROM cliente WHERE idcliente = %s", (id_cliente,))
+        cliente_info = cur.fetchone()
+        if cliente_info:
+            telefono_cliente = cliente_info[0]
+            enviar_solicitud_calificacion(telefono_cliente)
+            print(f"Solicitud de calificación enviada a cliente {telefono_cliente}")
+        
         tanda_actual = None
         for tanda in RepartidorService.TandasActuales:
             if tanda["id_tanda"] == tanda_id and tanda["id_repartidor"] == id_repartidor:
@@ -275,7 +277,6 @@ class RepartidorService:
                     tanda["pedidos_ids"].remove(id_pedido)
                 break
         
-        # Si no quedan pedidos pendientes, la tanda está completada
         if not tanda_actual or not tanda_actual["pedidos_ids"]:
             print(f"Tanda {tanda_id} completada")
             self.finalizar_tanda(id_repartidor)
@@ -301,14 +302,12 @@ class RepartidorService:
         enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
         print(f"Cliente notificado: {proximo_pedido.id_chat}")
         
-        # Obtener pedidos pendientes desde TandasActuales
         pedidos_ids_pendientes = tanda_actual["pedidos_ids"] if tanda_actual else []
         
         cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
         repartidor_info = cur.fetchone()
         
         if pedidos_ids_pendientes and repartidor_info:
-            # Consultar BD solo para obtener datos completos usando los IDs de TandasActuales
             placeholders = ','.join(['%s'] * len(pedidos_ids_pendientes))
             cur.execute(f"""
                 SELECT idpedido, id_chat, id_cliente, id_repartidor, direccion, 

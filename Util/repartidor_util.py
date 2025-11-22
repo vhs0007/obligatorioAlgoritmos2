@@ -2,16 +2,13 @@ from whatsapp_api import enviar_mensaje_whatsapp, enviar_imagen_whatsapp
 from Util.database import get_db_connection
 
 def obtener_pedidos_pendientes_repartidor(id_repartidor):
-    # Import lazy para evitar import circular
     from Services.RepartidorService import RepartidorService
     
-    # Buscar todas las tandas del repartidor en TandasActuales
     tandas_repartidor = [
         tanda for tanda in RepartidorService.TandasActuales
         if tanda["id_repartidor"] == id_repartidor
     ]
     
-    # Obtener todos los IDs de pedidos pendientes de todas las tandas
     pedidos_ids = []
     for tanda in tandas_repartidor:
         pedidos_ids.extend(tanda["pedidos_ids"])
@@ -19,7 +16,6 @@ def obtener_pedidos_pendientes_repartidor(id_repartidor):
     if not pedidos_ids:
         return []
     
-    # Consultar BD solo para obtener datos completos usando los IDs
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -108,13 +104,9 @@ def manejar_seleccion_pedido(numero, seleccion_id):
     )
 
     if resultado.get("tanda_finalizada"):
-        return enviar_mensaje_whatsapp(numero, "🎉 Tanda completada! Sos un crack 🙌")
-
-    pedidos = obtener_pedidos_pendientes_repartidor(repartidor["id"])
-    if not pedidos:
-        return enviar_mensaje_whatsapp(numero, "No tenés más pedidos pendientes 🙌")
+        return enviar_mensaje_whatsapp(numero, "🎉 Tanda completada! Sos un crack Kick Buttowski🙌")
     
-    return menu_pedidos_repartidor(numero, pedidos)
+    return None
 
 def enviar_actualizacion_repartidor(telefono, pedidos, ruta_imagen, mensaje):
 
@@ -122,7 +114,7 @@ def enviar_actualizacion_repartidor(telefono, pedidos, ruta_imagen, mensaje):
         enviar_imagen_whatsapp(telefono, ruta_imagen, mensaje)
 
     if not pedidos:
-        enviar_mensaje_whatsapp(telefono, "No tenés más pedidos pendientes 🙌")
+        enviar_mensaje_whatsapp(telefono, "No tenés más pedidos pendientes Flander🙌")
         return
 
     rows = [{
