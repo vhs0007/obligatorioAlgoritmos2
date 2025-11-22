@@ -19,35 +19,35 @@ def enviar_solicitud_calificacion(numero_cliente):
                     {
                         "type": "reply",
                         "reply": {
-                            "id": f"calificar_1",
+                            "id": "calificar_1",
                             "title": "⭐ 1"
                         }
                     },
                     {
                         "type": "reply",
                         "reply": {
-                            "id": f"calificar_2",
+                            "id": "calificar_2",
                             "title": "⭐⭐ 2"
                         }
                     },
                     {
                         "type": "reply",
                         "reply": {
-                            "id": f"calificar_3",
+                            "id": "calificar_3",
                             "title": "⭐⭐⭐ 3"
                         }
                     },
                     {
                         "type": "reply",
                         "reply": {
-                            "id": f"calificar_4",
+                            "id": "calificar_4",
                             "title": "⭐⭐⭐⭐ 4"
                         }
                     },
                     {
                         "type": "reply",
                         "reply": {
-                            "id": f"calificar_5",
+                            "id": "calificar_5",
                             "title": "⭐⭐⭐⭐⭐ 5"
                         }
                     }
@@ -60,23 +60,33 @@ def enviar_solicitud_calificacion(numero_cliente):
 
 
 def manejar_calificacion(numero, calificacion_id):
+  
     try:
+      
         partes = calificacion_id.split("_")
-        if len(partes) < 3:
+        if len(partes) < 2:
             return enviar_mensaje_whatsapp(numero, "Error al procesar la calificación. Por favor, intenta nuevamente.")
         
-        estrellas = int(partes[1])  
+        estrellas = int(partes[1])  # X
         
         if estrellas < 1 or estrellas > 5:
             return enviar_mensaje_whatsapp(numero, "Calificación inválida. Por favor, selecciona entre 1 y 5 estrellas.")
         
+        # Obtener id_cliente del número de teléfono
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT id_cliente FROM cliente WHERE telefono = %s", (numero,))
+        # Normalizar número de teléfono para búsqueda
+        numero_limpio = numero.strip().replace("+", "").replace(" ", "").replace("-", "")
+        cur.execute("SELECT idcliente FROM cliente WHERE REPLACE(REPLACE(REPLACE(telefono, '+', ''), ' ', ''), '-', '') LIKE %s", (f"%{numero_limpio}",))
         cliente_info = cur.fetchone()
         
-        id_cliente = cliente_info[0]  
+        if not cliente_info:
+            cur.close()
+            conn.close()
+            return enviar_mensaje_whatsapp(numero, "Cliente no encontrado.")
+        
+        id_cliente = cliente_info[0]
         cur.close()
         conn.close()
         

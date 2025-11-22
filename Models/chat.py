@@ -140,6 +140,7 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, res["body"])
 
     def handle_text(self, numero, texto):
+       
         if texto.strip().startswith("pedido_"):
             repartidor_service = RepartidorService()
             repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
@@ -152,8 +153,9 @@ class Chat:
                     }
                 }
                 resultado = handle_interactive(numero, interactive)
-                if resultado:
-                    return resultado
+                
+                return resultado
+        
         
         if texto.strip().startswith("calificar_"):
             return manejar_calificacion(numero, texto.strip())

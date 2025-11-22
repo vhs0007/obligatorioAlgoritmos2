@@ -262,12 +262,16 @@ class RepartidorService:
         conn.commit()
         print(f"Pedido {id_pedido} entregado")
         
-        cur.execute("SELECT telefono FROM cliente WHERE idcliente = %s", (id_cliente,))
-        cliente_info = cur.fetchone()
-        if cliente_info:
-            telefono_cliente = cliente_info[0]
-            enviar_solicitud_calificacion(telefono_cliente)
-            print(f"Solicitud de calificación enviada a cliente {telefono_cliente}")
+        # Obtener número de teléfono del cliente para enviar solicitud de calificación
+        # id_chat tiene formato "chat_<numero>", extraer el número directamente
+        numero_cliente = id_chat.replace("chat_", "").strip()
+        
+        if numero_cliente:
+            # Enviar solicitud de calificación al cliente
+            enviar_solicitud_calificacion(numero_cliente)
+            print(f"Solicitud de calificación enviada a cliente {numero_cliente} para pedido {id_pedido}")
+        else:
+            print(f"⚠️ No se pudo extraer número de cliente desde id_chat={id_chat}")
         
         tanda_actual = None
         for tanda in RepartidorService.TandasActuales:
