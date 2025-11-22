@@ -124,6 +124,21 @@ class PedidosService:
         
         return tandas_creadas
     
+    def verificar_pedidos_sin_asignar():
+        from Util.database import get_db_session
+        
+        db_session = get_db_session()
+        try:
+            pedido_service = PedidosService(db_session)
+            tandas_creadas = pedido_service.revisar_todas_las_zonas()
+            
+            if tandas_creadas:
+                print(f"timeout de tandas: {len(tandas_creadas)} tanda(s) creada(s)")
+        except Exception as e:
+            print(f"error en verificar_pedidos_sin_asignar: {e}")
+        finally:
+            db_session.close()
+    
     def obtener_tandas_pendientes(self):
         return PedidosService.tandas_creadas
     

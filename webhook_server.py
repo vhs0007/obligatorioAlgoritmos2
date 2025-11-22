@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 import traceback
+import threading
+import time
 from Models.chat import Chat
 from Services.PedidoService import PedidosService
 from Services.ProductoService import ProductosService
@@ -46,6 +48,18 @@ async def startup_event():
             print("✅ Base de datos ya inicializada")
         
         print("🚀 Sistema de colas en memoria inicializado")
+        
+        def temporizador():
+            while True:
+                try:
+                    PedidosService.verificar_pedidos_sin_asignar()
+                except Exception as e:
+                    print(f"Error en temporizador: {e}")
+                time.sleep(60) 
+        
+        thread = threading.Thread(target=temporizador, daemon=True)
+        thread.start()
+        print("Thread de temporizador iniciado (revisa cada 60 segundos)")
         
     except Exception as e:
         print(f"⚠️ Error al verificar/inicializar base de datos: {e}")
