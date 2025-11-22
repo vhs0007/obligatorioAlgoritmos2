@@ -42,15 +42,15 @@ class PedidosService:
     
     def obtener_cola_por_zona(self, zona):
         if zona == "NO":
-            return self.cola_no
+            return PedidosService.cola_no
         elif zona == "NE":
-            return self.cola_ne
+            return PedidosService.cola_ne
         elif zona == "SO":
-            return self.cola_so
+            return PedidosService.cola_so
         elif zona == "SE":
-            return self.cola_se
+            return PedidosService.cola_se
         else:
-            return self.cola_no
+            return PedidosService.cola_no
     
     def encolar_pedido(self, pedido):
         cola = self.obtener_cola_por_zona(pedido.zona)
@@ -121,6 +121,7 @@ class PedidosService:
         for zona in zonas:
             debe_crear, razon = self.debe_crear_tanda(zona)
             if debe_crear:
+                print(f"🔔 debe_crear_tanda retornó True para zona {zona} - razón: {razon}")
                 # Programar timeout de 3 minutos para esta zona
                 self.programar_timeout_zona(zona)
                 
@@ -129,6 +130,9 @@ class PedidosService:
                     tandas_creadas.append(tanda)
                     # Cancelar timeout si se creó la tanda
                     self.cancelar_timeout_zona(zona)
+                    print(f"✅ Tanda creada inmediatamente para zona {zona}, timeout cancelado")
+                else:
+                    print(f"⚠️ No se pudo crear tanda para zona {zona}, timeout seguirá activo")
         
         return tandas_creadas
     

@@ -14,12 +14,9 @@ from seed_database import main as seed_main
 app = FastAPI()
 VERIFY_TOKEN = "Chacalitas2025"
 
-# Inicializar tablas automáticamente al iniciar el servidor (solo si no existen)
 @app.on_event("startup")
 async def startup_event():
-    """Inicializa las tablas de la base de datos al iniciar el servidor."""
     try:
-        # Verificar si las tablas ya existen
         with engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT EXISTS (
@@ -35,7 +32,6 @@ async def startup_event():
             init_db()
             print("✅ Tablas creadas correctamente")
             
-            # Ejecutar seeding automáticamente después de crear las tablas
             print("🌱 Ejecutando seeding de datos iniciales...")
             try:
                 seed_main()
