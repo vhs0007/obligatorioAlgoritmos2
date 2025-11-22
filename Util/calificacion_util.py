@@ -56,7 +56,8 @@ def enviar_solicitud_calificacion(numero_cliente):
         }
     }
     
-    return enviar_mensaje_whatsapp(numero_cliente, payload)
+    resultado = enviar_mensaje_whatsapp(numero_cliente, payload)
+    return resultado
 
 
 def manejar_calificacion(numero, calificacion_id):

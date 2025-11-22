@@ -262,16 +262,16 @@ class RepartidorService:
         conn.commit()
         print(f"Pedido {id_pedido} entregado")
         
-        # Obtener número de teléfono del cliente para enviar solicitud de calificación
-        # id_chat tiene formato "chat_<numero>", extraer el número directamente
-        numero_cliente = id_chat.replace("chat_", "").strip()
+        numero_cliente = id_chat.replace("chat_", "").strip() if id_chat.startswith("chat_") else id_chat.strip()
         
         if numero_cliente:
-            # Enviar solicitud de calificación al cliente
-            enviar_solicitud_calificacion(numero_cliente)
-            print(f"Solicitud de calificación enviada a cliente {numero_cliente} para pedido {id_pedido}")
-        else:
-            print(f"⚠️ No se pudo extraer número de cliente desde id_chat={id_chat}")
+            try:
+                print(f"Enviando solicitud de calificación a {numero_cliente}...")
+                resultado = enviar_solicitud_calificacion(numero_cliente)
+                if resultado and not resultado.get("success"):
+                    print(f"Error al enviar calificación: {resultado.get('error')}")
+            except Exception as e:
+                print(f"Error al enviar solicitud de calificación: {e}")
         
         tanda_actual = None
         for tanda in RepartidorService.TandasActuales:
