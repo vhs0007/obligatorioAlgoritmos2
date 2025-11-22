@@ -152,8 +152,6 @@ class RepartidorService:
                 
         except Exception as e:
             print(f" Error calculando/enviando ruta: {e}")
-            print("Continuando sin ruta...")
-        
         return True
     
     def asignar_tanda(self, tanda):
@@ -162,12 +160,12 @@ class RepartidorService:
         if len(repartidores_disponibles) > 0:
             repartidor_elegido = random.choice(repartidores_disponibles)
             id_repartidor = repartidor_elegido[0]
-            print(f"📋 Asignando Tanda {tanda['id']} a repartidor {id_repartidor} (disponibles: {len(repartidores_disponibles)})")
+            print(f"Asignando Tanda {tanda['id']} a repartidor {id_repartidor} (disponibles: {len(repartidores_disponibles)})")
             self.asignar_tanda_a_repartidor(tanda, id_repartidor)
             return True
         else:
             RepartidorService.cola_tandas_pendientes.append(tanda)
-            print(f"⚠️ Tanda {tanda['id']} encolada (sin repartidores disponibles)")
+            print(f"Tanda {tanda['id']} encolada (sin repartidores disponibles)")
             
             return self.asignar_tanda_aleatoria(tanda)
     
@@ -426,7 +424,6 @@ class RepartidorService:
         }
     
     def confirmar_entrega(self, id_repartidor, id_pedido, codigo_ingresado):
-        """Confirma la entrega de un pedido, validando código y actualizando el estado."""
         pedido_info = self.obtener_info_pedido(id_pedido)
         if not pedido_info:
             return {"success": False, "mensaje": "Pedido no encontrado"}
@@ -454,7 +451,6 @@ class RepartidorService:
         
         resultado = self.enviar_siguiente_pedido(id_repartidor, tanda_id, id_pedido, lat_actual, lon_actual)
         return resultado
-
 
     def asignar_repartidor(id_pedido, zona):
         conn = get_db_connection()
@@ -532,18 +528,6 @@ class RepartidorService:
         
         pedidos_ordenados = sorted(pedidos, key=obtener_distancia)
         return pedidos_ordenados
-    
-    def distancia_manhattan(lat1, lon1, lat2, lon2):
-        lat_km = abs(float(lat1) - float(lat2)) * 111.0
-        lon_km = abs(float(lon1) - float(lon2)) * 111.0 * math.cos(math.radians((float(lat1) + float(lat2)) / 2))
-        
-        return lat_km + lon_km
-    
-    def distancia_euclidiana(lat1, lon1, lat2, lon2):
-        lat_km = (float(lat1) - float(lat2)) * 111.0
-        lon_km = (float(lon1) - float(lon2)) * 111.0 * math.cos(math.radians((float(lat1) + float(lat2)) / 2))
-        
-        return math.sqrt(lat_km**2 + lon_km**2)
     
     def calcular_km_ruta(self, id_repartidor, lista_pedidos):
         from Util.database import get_db_connection
