@@ -442,7 +442,6 @@ class Chat:
                 mensaje = f"Error {resultado['mensaje']}"
                 return enviar_mensaje_whatsapp(numero, mensaje)
         
-        # En lugar de pedir texto, enviar interactive con pedidos pendientes
         pedidos = obtener_pedidos_pendientes_repartidor(repartidor["id"])
         if not pedidos:
             return enviar_mensaje_whatsapp(numero, "No tenés pedidos pendientes en este momento.")

@@ -2,15 +2,34 @@ from whatsapp_api import enviar_mensaje_whatsapp, enviar_imagen_whatsapp
 from Util.database import get_db_connection
 
 def obtener_pedidos_pendientes_repartidor(id_repartidor):
+    # Import lazy para evitar import circular
+    from Services.RepartidorService import RepartidorService
+    
+    # Buscar todas las tandas del repartidor en TandasActuales
+    tandas_repartidor = [
+        tanda for tanda in RepartidorService.TandasActuales
+        if tanda["id_repartidor"] == id_repartidor
+    ]
+    
+    # Obtener todos los IDs de pedidos pendientes de todas las tandas
+    pedidos_ids = []
+    for tanda in tandas_repartidor:
+        pedidos_ids.extend(tanda["pedidos_ids"])
+    
+    if not pedidos_ids:
+        return []
+    
+    # Consultar BD solo para obtener datos completos usando los IDs
     conn = get_db_connection()
     cur = conn.cursor()
     
-    cur.execute("""
+    placeholders = ','.join(['%s'] * len(pedidos_ids))
+    cur.execute(f"""
         SELECT idpedido, direccion 
         FROM pedido 
-        WHERE id_repartidor = %s AND estado != 'entregado'
+        WHERE idpedido IN ({placeholders})
         ORDER BY idpedido
-    """, (id_repartidor,))
+    """, tuple(pedidos_ids))
     
     resultados = cur.fetchall()
     cur.close()
