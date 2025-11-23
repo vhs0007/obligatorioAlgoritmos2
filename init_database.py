@@ -1,7 +1,7 @@
 from Util.database import (
     init_db, get_db_connection,
     Categoria, Producto, Cliente, Repartidor, Chat, Mensaje,
-    Pedido, DetallePedido, Calificacion, UsuarioCalificacion
+    Pedido, DetallePedido, Calificaciones, ClientesCalificaciones
 )
 import logging
 
@@ -17,7 +17,7 @@ def main():
         
         models = [
             Categoria, Producto, Cliente, Repartidor, Chat, Mensaje,
-            Pedido, DetallePedido, Calificacion, UsuarioCalificacion
+            Pedido, DetallePedido, Calificaciones, ClientesCalificaciones
         ]
         print(f"Modelos importados: {len(models)}")
         

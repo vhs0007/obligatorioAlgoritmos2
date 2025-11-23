@@ -1,5 +1,5 @@
 from whatsapp_api import enviar_mensaje_whatsapp, normalizar_numero_telefono
-from Util.database import get_db_connection, Calificacion, UsuarioCalificacion
+from Util.database import get_db_connection, Calificaciones, ClientesCalificaciones
 from sqlmodel import Session, select
 from Util.database import get_db_session
 
@@ -95,14 +95,14 @@ def manejar_calificacion(numero, calificacion_id):
         
         db = get_db_session()
         try:
-            calificacion = Calificacion(
+            calificacion = Calificaciones(
                 estrellas=estrellas
             )
             db.add(calificacion)
             db.commit()
             db.refresh(calificacion)
             
-            usuario_calificacion = UsuarioCalificacion(
+            usuario_calificacion = ClientesCalificaciones(
                 id_calificacion=calificacion.id_calificacion,
                 id_cliente=id_cliente
             )
