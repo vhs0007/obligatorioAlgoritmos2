@@ -151,12 +151,10 @@ class PedidosService:
         return tandas_creadas
     
     def programar_timeout_zona(self, zona):
-        """Programa un timeout de 3 minutos para crear tanda si no se creó antes."""
-        # Cancelar timeout anterior si existe
         self.cancelar_timeout_zona(zona)
         
         print(f"🔧 Iniciando thread para timeout de zona {zona}...")
-        t = threading.Thread(target=PedidosService._timeout_zona_static, args=(zona,))
+        t = threading.Thread(target=lambda: self.timeout_zona(zona))
         t.daemon = True
         t.start()
         PedidosService.timeouts_activos[zona] = t
