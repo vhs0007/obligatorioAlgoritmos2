@@ -141,15 +141,19 @@ class PedidosService:
         # Cancelar timeout anterior si existe
         self.cancelar_timeout_zona(zona)
         
-        t = threading.Thread(target=self.timeout_zona, args=(zona,))
+        print(f"🔧 Iniciando thread para timeout de zona {zona}...")
+        t = threading.Thread(target=PedidosService._timeout_zona_static, args=(zona,))
         t.daemon = True
         t.start()
         PedidosService.timeouts_activos[zona] = t
-        print(f"⏰ Timeout de 3 minutos programado para zona {zona}")
+        print(f"⏰ Timeout de 3 minutos programado para zona {zona} (thread ID: {t.ident})")
     
-    def timeout_zona(self, zona):
+    @staticmethod
+    def _timeout_zona_static(zona):
         """Timeout de 3 minutos: si no se creó tanda, la crea automáticamente."""
+        print(f"⏳ Thread de timeout iniciado para zona {zona}, esperando 180 segundos...")
         time.sleep(180)  # 3 minutos = 180 segundos
+        print(f"⏰ Timeout de 3 minutos alcanzado para zona {zona}")
         
         # Verificar si aún hay pedidos en la cola sin tanda usando variables de clase
         cola = None
@@ -162,6 +166,8 @@ class PedidosService:
         elif zona == "SE":
             cola = PedidosService.cola_se
         
+        print(f"📊 Verificando cola de zona {zona}: {len(cola) if cola else 0} pedidos")
+        
         if cola and len(cola) > 0:
             print(f"⏰ Timeout de 3 minutos alcanzado para zona {zona}. Creando tanda...")
             
@@ -173,24 +179,32 @@ class PedidosService:
                 
                 # Verificar si aún debe crear tanda
                 debe_crear, razon = pedido_service.debe_crear_tanda(zona)
+                print(f"🔍 Verificación: debe_crear={debe_crear}, razón={razon}")
                 if debe_crear:
                     tanda = pedido_service.crear_tanda(zona)
                     if tanda:
                         print(f"✅ Tanda creada por timeout en zona {zona}")
+                    else:
+                        print(f"❌ No se pudo crear tanda por timeout en zona {zona}")
+                else:
+                    print(f"ℹ️ Ya no se debe crear tanda para zona {zona}")
             except Exception as e:
                 print(f"⚠️ Error en timeout de zona {zona}: {e}")
+                import traceback
+                traceback.print_exc()
             finally:
                 db_session.close()
+        else:
+            print(f"ℹ️ No hay pedidos en cola para zona {zona}, no se crea tanda")
         
         # Limpiar timeout
         if zona in PedidosService.timeouts_activos:
             del PedidosService.timeouts_activos[zona]
+            print(f"🧹 Timeout limpiado para zona {zona}")
     
     def cancelar_timeout_zona(self, zona):
-        """Cancela el timeout activo para una zona."""
         if zona in PedidosService.timeouts_activos:
-            # No podemos cancelar un thread que ya está corriendo, pero lo marcamos
-            # El thread verificará si la tanda ya fue creada
+           
             if zona in PedidosService.timeouts_activos:
                 del PedidosService.timeouts_activos[zona]
                 print(f"⏹️ Timeout cancelado para zona {zona}")
