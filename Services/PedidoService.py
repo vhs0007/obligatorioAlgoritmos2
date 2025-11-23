@@ -4,6 +4,7 @@ from Services.RepartidorService import RepartidorService
 import math
 import random
 import threading
+from functools import partial
 import time
 
 class PedidosService:
@@ -132,15 +133,13 @@ class PedidosService:
             print(f"🔍 debe_crear_tanda({zona}) = {debe_crear}, razón: {razon}")
             if debe_crear:
                 print(f"🔔 debe_crear_tanda retornó True para zona {zona} - razón: {razon}")
-                # Programar timeout de 3 minutos para esta zona
-                print(f"📞 Llamando programar_timeout_zona({zona})...")
+                print(f"📞 Llamando programar timeout_zona({zona})...")
                 self.programar_timeout_zona(zona)
-                print(f"✅ programar_timeout_zona({zona}) completado")
+                print(f"✅ programar timeout_zona({zona}) completado")
                 
                 tanda = self.crear_tanda(zona)
                 if tanda:
                     tandas_creadas.append(tanda)
-                    # Cancelar timeout si se creó la tanda
                     self.cancelar_timeout_zona(zona)
                     print(f"✅ Tanda creada inmediatamente para zona {zona}, timeout cancelado")
                 else:
@@ -154,19 +153,19 @@ class PedidosService:
         self.cancelar_timeout_zona(zona)
         
         print(f"🔧 Iniciando thread para timeout de zona {zona}...")
-        t = threading.Thread(target=lambda: self.timeout_zona(zona))
+        t = threading.Thread(target=PedidosService._timeout_zona_static, args=(zona,))
         t.daemon = True
         t.start()
         PedidosService.timeouts_activos[zona] = t
         print(f"⏰ Timeout de 3 minutos programado para zona {zona} (thread ID: {t.ident})")
     
-    def timeout_zona(self, zona):
+    @staticmethod
+    def _timeout_zona_static(zona):
         """Timeout de 3 minutos: si no se creó tanda, la crea automáticamente."""
         print(f"⏳ Thread de timeout iniciado para zona {zona}, esperando 180 segundos...")
-        time.sleep(180)  # 3 minutos = 180 segundos
+        time.sleep(180)  
         print(f"⏰ Timeout de 3 minutos alcanzado para zona {zona}")
         
-        # Verificar si aún hay pedidos en la cola sin tanda usando variables de clase
         cola = None
         if zona == "NO":
             cola = PedidosService.cola_no
@@ -186,9 +185,7 @@ class PedidosService:
             db_session = get_db_session()
             try:
                 pedido_service = PedidosService(db_session)
-                # Las colas son variables de clase, ya están compartidas
                 
-                # Verificar si aún debe crear tanda
                 debe_crear, razon = pedido_service.debe_crear_tanda(zona)
                 print(f"🔍 Verificación: debe_crear={debe_crear}, razón={razon}")
                 if debe_crear:
