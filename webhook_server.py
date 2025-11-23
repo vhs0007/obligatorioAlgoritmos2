@@ -139,6 +139,10 @@ async def receive(request: Request):
             chat_service = ChatService(db_session)
             # Las colas se mantienen en memoria como variables de clase
             pedido_service = PedidosService(db_session)
+            
+            # Revisar si hay que crear tandas pendientes por timeout
+            pedido_service.revisar_crear_tanda_memoria()
+            
             producto_service = ProductosService()
             
             id_cliente = ClienteService.obtener_o_crear_cliente("", "", numero)
