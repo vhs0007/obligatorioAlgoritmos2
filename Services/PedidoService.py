@@ -55,12 +55,14 @@ class PedidosService:
     def encolar_pedido(self, pedido):
         cola = self.obtener_cola_por_zona(pedido.zona)
         cola.append(pedido.idpedido)
-        print(f"pedido {pedido.idpedido} encolado en zona {pedido.zona}. Total en cola: {len(cola)}")
+        print(f"📦 pedido {pedido.idpedido} encolado en zona {pedido.zona}. Total en cola: {len(cola)}")
     
     def debe_crear_tanda(self, zona):
         cola = self.obtener_cola_por_zona(zona)
+        print(f"🔍 debe_crear_tanda({zona}): cola tiene {len(cola)} pedidos")
         
         if len(cola) >= 3:
+            print(f"✅ debe_crear_tanda({zona}): True (3 o más pedidos)")
             return True, "3_pedidos"
         
         if len(cola) > 0:
@@ -68,9 +70,14 @@ class PedidosService:
             primer_pedido = self.db.query(Pedido).filter(Pedido.idpedido == primer_pedido_id).first()
             if primer_pedido and primer_pedido.fecha_confirmacion:
                 tiempo_espera = datetime.now() - primer_pedido.fecha_confirmacion
+                print(f"🔍 debe_crear_tanda({zona}): tiempo_espera = {tiempo_espera}, minutos = {tiempo_espera.total_seconds() / 60}")
                 if tiempo_espera >= timedelta(minutes=2):
+                    print(f"✅ debe_crear_tanda({zona}): True (2 minutos de espera)")
                     return True, "2_minutos"
+            else:
+                print(f"ℹ️ debe_crear_tanda({zona}): pedido sin fecha_confirmacion o no encontrado")
         
+        print(f"❌ debe_crear_tanda({zona}): False")
         return False, None
     
     def crear_tanda(self, zona):
@@ -115,15 +122,20 @@ class PedidosService:
         return tanda
     
     def revisar_todas_las_zonas(self):
+        print(f"🔍 revisar_todas_las_zonas() llamado")
         zonas = ["NO", "NE", "SO", "SE"]
         tandas_creadas = []
         
         for zona in zonas:
+            print(f"🔍 Revisando zona {zona}...")
             debe_crear, razon = self.debe_crear_tanda(zona)
+            print(f"🔍 debe_crear_tanda({zona}) = {debe_crear}, razón: {razon}")
             if debe_crear:
                 print(f"🔔 debe_crear_tanda retornó True para zona {zona} - razón: {razon}")
                 # Programar timeout de 3 minutos para esta zona
+                print(f"📞 Llamando programar_timeout_zona({zona})...")
                 self.programar_timeout_zona(zona)
+                print(f"✅ programar_timeout_zona({zona}) completado")
                 
                 tanda = self.crear_tanda(zona)
                 if tanda:
@@ -133,6 +145,8 @@ class PedidosService:
                     print(f"✅ Tanda creada inmediatamente para zona {zona}, timeout cancelado")
                 else:
                     print(f"⚠️ No se pudo crear tanda para zona {zona}, timeout seguirá activo")
+            else:
+                print(f"ℹ️ No se debe crear tanda para zona {zona}")
         
         return tandas_creadas
     
@@ -148,8 +162,7 @@ class PedidosService:
         PedidosService.timeouts_activos[zona] = t
         print(f"⏰ Timeout de 3 minutos programado para zona {zona} (thread ID: {t.ident})")
     
-    @staticmethod
-    def _timeout_zona_static(zona):
+    def timeout_zona(self, zona):
         """Timeout de 3 minutos: si no se creó tanda, la crea automáticamente."""
         print(f"⏳ Thread de timeout iniciado para zona {zona}, esperando 180 segundos...")
         time.sleep(180)  # 3 minutos = 180 segundos
