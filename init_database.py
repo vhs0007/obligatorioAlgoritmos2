@@ -24,7 +24,7 @@ def main():
         init_db()
         
     except Exception as e:
-        print(f"❌ Error al inicializar la base de datos: {e}")
+        print(f"Error al inicializar la base de datos: {e}")
         import traceback
         traceback.print_exc()
         raise
