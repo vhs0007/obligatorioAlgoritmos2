@@ -6,9 +6,10 @@ import tempfile
 def get_transcription(binary_audio: bytes) -> str:
     temp_file = None
     try:
-        openai_api_key = os.getenv("OPENAI_API_KEY") or 
+        # Intentar primero con OPENAI_API_KEY, luego con OPEN_API_KEY como fallback
+        openai_api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_API_KEY")
         if not openai_api_key:
-            raise ValueError("OPENAI_API_KEY no está configurada en las variables de entorno")
+            raise ValueError("OPENAI_API_KEY o OPEN_API_KEY no está configurada en las variables de entorno")
         
         with tempfile.NamedTemporaryFile(delete=False, suffix='.ogg') as temp_file:
             temp_file.write(binary_audio)
