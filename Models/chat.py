@@ -138,44 +138,43 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, res["body"])
         return enviar_mensaje_whatsapp(numero, res["body"])
 
-   def handle_text(self, numero, texto):
-    texto_strip = texto.strip()
-    texto_lower = texto_strip.lower()
-    repartidor_service = RepartidorService()
-    repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
+    def handle_text(self, numero, texto):
+        texto_strip = texto.strip()
+        texto_lower = texto_strip.lower()
+        repartidor_service = RepartidorService()
+        repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
 
-    if repartidor:
-        print(f"Repartidor: {repartidor}")
+        if repartidor:
+            print(f"Repartidor: {repartidor}")
 
-        if texto_strip.startswith("pedido_") or texto_strip.startswith("entregado_"):
-            if texto_strip.startswith("entregado_"):
-                interactive = {
-                    "type": "button_reply",
-                    "button_reply": { "id": texto_strip }
-                }
-            else:
-                interactive = {
-                    "type": "list_reply",
-                    "list_reply": { "id": texto_strip }
-                }
+            if texto_strip.startswith("pedido_") or texto_strip.startswith("entregado_"):
+                if texto_strip.startswith("entregado_"):
+                    interactive = {
+                        "type": "button_reply",
+                        "button_reply": { "id": texto_strip }
+                    }
+                else:
+                    interactive = {
+                        "type": "list_reply",
+                        "list_reply": { "id": texto_strip }
+                    }
 
-            resultado = handle_interactive(numero, interactive)
-            return resultado
+                resultado = handle_interactive(numero, interactive)
+                return resultado
 
-        return "Mensaje no válido para un repartidor."
+            return "Mensaje no válido para un repartidor."
 
-    if texto_strip.startswith("calificar_"):
-        return manejar_calificacion(numero, texto_strip)
+        if texto_strip.startswith("calificar_"):
+            return manejar_calificacion(numero, texto_strip)
 
-    if not self.id_chat:
-        self.id_chat = f"chat_{numero}"
+        if not self.id_chat:
+            self.id_chat = f"chat_{numero}"
 
-    flujo_actual = self.get_waiting_function(numero)
-    if flujo_actual:
-        return flujo_actual(numero, texto_lower)
-    return self.flujo_inicio(numero, texto_lower)
+        flujo_actual = self.get_waiting_function(numero)
+        if flujo_actual:
+            return flujo_actual(numero, texto_lower)
+        return self.flujo_inicio(numero, texto_lower)
 
-    
     def _registrar_y_enviar_mensaje(self, numero, mensaje):
         if self.id_chat:
             self.chat_service.registrar_mensaje(self.id_chat, mensaje, es_cliente=False)
@@ -384,79 +383,78 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, "📍 Enviá tu ubicación para calcular el envío.")
 
     def handle_location(self, numero, contenido):
+        try:
+            partes = [p.strip() for p in contenido.split(",")]
+            if len(partes) != 2:
+                return enviar_mensaje_whatsapp(numero, "⚠️ Enviá la ubicación como: lat, lon")
 
-    try:
-        partes = [p.strip() for p in contenido.split(",")]
-        if len(partes) != 2:
-            return enviar_mensaje_whatsapp(numero, "⚠️ Enviá la ubicación como: lat, lon")
+            lat = float(partes[0])
+            lon = float(partes[1])
 
-        lat = float(partes[0])
-        lon = float(partes[1])
+            if not (-31.7 <= lat <= -30.9 and -58.3 <= lon <= -57.0):
+                return enviar_mensaje_whatsapp(
+                    numero,
+                    "⚠️ La ubicación no corresponde a Salto, Uruguay. Enviá tu ubicación nuevamente."
+                )
 
-        if not (-31.7 <= lat <= -30.9 and -58.3 <= lon <= -57.0):
+        except:
             return enviar_mensaje_whatsapp(
                 numero,
-                "⚠️ La ubicación no corresponde a Salto, Uruguay. Enviá tu ubicación nuevamente."
+                "⚠️ No pude entender la ubicación. Usá este formato: -31.38, -57.96"
             )
 
-    except:
-        return enviar_mensaje_whatsapp(
-            numero,
-            "⚠️ No pude entender la ubicación. Usá este formato: -31.38, -57.96"
-        )
+        try:
+            id_cliente = self.id_cliente or self.conversation_data.get('id_cliente')
+            id_chat = self.id_chat or self.conversation_data.get('id_chat')
+            direccion = self.conversation_data.get('direccion') or ''
+            pedido_service = self.pedido_service
 
-    try:
-        id_cliente = self.id_cliente or self.conversation_data.get('id_cliente')
-        id_chat = self.id_chat or self.conversation_data.get('id_chat')
-        direccion = self.conversation_data.get('direccion') or ''
-        pedido_service = self.pedido_service
+            if not (pedido_service and id_cliente and id_chat):
+                return enviar_mensaje_whatsapp(numero, "⚠️ Faltan datos para crear el pedido. Intentalo de nuevo.")
 
-        if not (pedido_service and id_cliente and id_chat):
-            return enviar_mensaje_whatsapp(numero, "⚠️ Faltan datos para crear el pedido. Intentalo de nuevo.")
+            detalle_carrito = pedido_service.detalle_carrito(numero)
+            total = detalle_carrito.get('total', 0)
 
-        detalle_carrito = pedido_service.detalle_carrito(numero)
-        total = detalle_carrito.get('total', 0)
+            if total <= 250:
+                mensaje_error = (
+                    f"El pedido mínimo es de $250. Tu pedido actual es de ${total:.2f}. "
+                    f"Agregá más productos para completar tu pedido."
+                )
+                self.chat_service.registrar_mensaje(id_chat, mensaje_error, es_cliente=False)
+                return enviar_mensaje_whatsapp(numero, mensaje_error)
 
-        if total <= 250:
-            mensaje_error = (
-                f"El pedido mínimo es de $250. Tu pedido actual es de ${total:.2f}. "
-                f"Agregá más productos para completar tu pedido."
+            self.chat_service.registrar_mensaje(id_chat, f"Ubicación: {lat}, {lon}", es_cliente=True)
+
+            pedido = pedido_service.crear_pedido(
+                id_chat=id_chat,
+                id_cliente=id_cliente,
+                direccion=direccion,
+                latitud=lat,
+                longitud=lon
             )
-            self.chat_service.registrar_mensaje(id_chat, mensaje_error, es_cliente=False)
-            return enviar_mensaje_whatsapp(numero, mensaje_error)
 
-        self.chat_service.registrar_mensaje(id_chat, f"Ubicación: {lat}, {lon}", es_cliente=True)
+            self.conversation_data['id_pedido'] = getattr(pedido, 'idpedido', None)
 
-        pedido = pedido_service.crear_pedido(
-            id_chat=id_chat,
-            id_cliente=id_cliente,
-            direccion=direccion,
-            latitud=lat,
-            longitud=lon
-        )
+            estado = get_estado(numero)
+            estado["state"] = "pedido_confirmado"
 
-        self.conversation_data['id_pedido'] = getattr(pedido, 'idpedido', None)
+            cart = get_cart(numero)
+            if cart:
+                estado["state"] = "viendo_categorias"
+                clear_cart(numero)
 
-        estado = get_estado(numero)
-        estado["state"] = "pedido_confirmado"
+            msg = (
+                f"📍Tu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')} "
+                f"Y Código de verificación: {getattr(pedido, 'codigo_verificacion', 'N/A')}"
+            )
 
-        cart = get_cart(numero)
-        if cart:
-            estado["state"] = "viendo_categorias"
-            clear_cart(numero)
+            self.chat_service.registrar_mensaje(id_chat, msg, es_cliente=False)
 
-        msg = (
-            f"📍Tu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')} "
-            f"Y Código de verificación: {getattr(pedido, 'codigo_verificacion', 'N/A')}"
-        )
+            return enviar_mensaje_whatsapp(numero, msg)
 
-        self.chat_service.registrar_mensaje(id_chat, msg, es_cliente=False)
-
-        return enviar_mensaje_whatsapp(numero, msg)
-
-    except Exception as e:
-        print(f"Error en handle_location: {e}")
-        return enviar_mensaje_whatsapp(numero, "⚠️ No se pudo procesar la ubicación correctamente.")
+        except Exception as e:
+            print(f"Error en handle_location: {e}")
+            return enviar_mensaje_whatsapp(numero, "⚠️ No se pudo procesar la ubicación correctamente.")
 
     
     def manejar_mensaje_repartidor(self, numero, repartidor, texto):
