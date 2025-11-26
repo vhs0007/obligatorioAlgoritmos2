@@ -35,7 +35,11 @@ def get_type(message):
                 contenido = get_transcription(binary_audio)
         except Exception as error:
             print(f"⚠️ Error al procesar audio: {error}")
-            contenido = "No pude procesar el audio. Por favor, envía un mensaje de texto."
+            # Mensaje más específico para rate limiting
+            if "429" in str(error) or "Too Many Requests" in str(error):
+                contenido = "⚠️ Se excedió el límite de solicitudes. Por favor, espera unos momentos y envía un mensaje de texto en su lugar."
+            else:
+                contenido = "No pude procesar el audio. Por favor, envía un mensaje de texto."
 
     else:
         print(f"⚠️ Tipo de mensaje no manejado: {tipo}")
