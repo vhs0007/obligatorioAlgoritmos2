@@ -6,6 +6,10 @@ import tempfile
 def get_transcription(binary_audio: bytes) -> str:
     temp_file = None
     try:
+        openai_api_key = os.getenv("OPENAI_API_KEY") or 
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY no está configurada en las variables de entorno")
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix='.ogg') as temp_file:
             temp_file.write(binary_audio)
             temp_file_path = temp_file.name
@@ -19,7 +23,7 @@ def get_transcription(binary_audio: bytes) -> str:
                     'model': 'whisper-1'
                 }
                 headers = {
-                    'Authorization': f'Bearer {os.getenv("OPENAI_API_KEY")}'
+                    'Authorization': f'Bearer {openai_api_key}'
                 }
                 
                 response = requests.post(
