@@ -183,12 +183,8 @@ class Chat:
 
 
     def flujo_inicio(self, numero, mensaje):
-        if mensaje in ("hola", "hi", "buenas", "buenos dias", "buenas tardes", "buenas noches"):
-            respuesta = "👋 ¡Hola! Bienvenido a GordoEats 🍔\n\nEscribí *menu* para ver nuestros productos o *carrito* para ver tu pedido."
-            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
-            return enviar_mensaje_whatsapp(numero, respuesta)
-        
-        if mensaje == "menu":
+        # Palabras clave relevantes: verificar si alguna está contenida en el mensaje
+        if "menu" in mensaje or "carta" in mensaje or "menú" in mensaje:
             self.set_waiting_for(numero, "flujo_categorias")
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
@@ -197,11 +193,17 @@ class Chat:
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
-        if mensaje == "carrito":
+        if "carrito" in mensaje:
             self.set_waiting_for(numero, "flujo_carrito")
             res = self.pedido_service.mostrar_carrito_pedidos(numero)
             self.chat_service.registrar_mensaje(self.id_chat, res["body"], es_cliente=False)
             return enviar_mensaje_whatsapp(numero, res["body"])
+
+        # Mensajes no relevantes: usar comparaciones exactas (==)
+        if mensaje == "hola" or mensaje == "hi" or mensaje == "buenas" or mensaje == "buenos dias" or mensaje == "buenas tardes" or mensaje == "buenas noches":
+            respuesta = "👋 ¡Hola! Bienvenido a GordoEats 🍔\n\nEscribí *menu* para ver nuestros productos o *carrito* para ver tu pedido."
+            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
+            return enviar_mensaje_whatsapp(numero, respuesta)
 
         respuesta = "👋 Escribí *menu* para ver productos o *carrito* para ver tu pedido."
         self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
@@ -283,12 +285,12 @@ class Chat:
             self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, payload)
         
-        if mensaje == "carrito":
+        if "carrito" in mensaje:
             self.set_waiting_for(numero, "flujo_carrito")
             res = self.pedido_service.mostrar_carrito_pedidos(numero)
             return enviar_mensaje_whatsapp(numero, res["body"])
 
-        if mensaje == "menu":
+        if "menu" in mensaje or "carta" in mensaje or "menú" in mensaje:
             self.set_waiting_for(numero, "flujo_categorias")
             estado["state"] = "viendo_categorias"
             return enviar_mensaje_whatsapp(numero, menu_categorias(numero, estado.get("cat_page", 1)))

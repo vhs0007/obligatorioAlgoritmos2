@@ -1,3 +1,6 @@
+from Util.audio_util import get_url_media, get_binary_media, get_transcription
+
+
 def get_type(message):
     tipo = message.get("type", "unknown")
     contenido = ""
@@ -22,7 +25,17 @@ def get_type(message):
             contenido = f"{lat},{lon}"
 
     elif tipo == "audio":
-        contenido = message.get("audio", {}).get("id", "")
+        try:
+            id_audio = message.get("audio", {}).get("id", "")
+            if not id_audio:
+                contenido = "No pude procesar el audio. Por favor, envía un mensaje de texto."
+            else:
+                url = get_url_media(id_audio)
+                binary_audio = get_binary_media(url)
+                contenido = get_transcription(binary_audio)
+        except Exception as error:
+            print(f"⚠️ Error al procesar audio: {error}")
+            contenido = "No pude procesar el audio. Por favor, envía un mensaje de texto."
 
     else:
         print(f"⚠️ Tipo de mensaje no manejado: {tipo}")

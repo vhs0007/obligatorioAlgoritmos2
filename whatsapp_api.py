@@ -137,10 +137,14 @@ def procesar_mensaje_recibido(data):
         numero = message.get("from")
 
         if numero == WHATSAPP_PHONE_NUMBER_ID:
-            print("🛑 Ignorando mensaje del propio bot.")
+            print(" Ignorando mensaje del propio bot.")
             return None
 
         tipo, contenido = get_type(message)
+        
+        if tipo == "audio":
+            tipo = "text"
+        
         return numero, contenido, tipo
 
     except Exception as e:
