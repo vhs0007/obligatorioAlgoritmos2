@@ -48,7 +48,7 @@ def get_transcription(binary_audio: bytes) -> str:
 def get_url_media(id_audio: str) -> str:
     url = f'https://graph.facebook.com/v18.0/{id_audio}/'
     headers = {
-        'Authorization': f'Bearer {os.getenv("WHATSAPP_CLOUD_API_KEY")}'
+        'Authorization': f'Bearer {os.getenv("WHATSAPP_ACCESS_TOKEN")}'
     }
     
     try:
@@ -61,7 +61,7 @@ def get_url_media(id_audio: str) -> str:
 
 def get_binary_media(url: str) -> bytes:
     headers = {
-        'Authorization': f'Bearer {os.getenv("WHATSAPP_CLOUD_API_KEY")}'
+        'Authorization': f'Bearer {os.getenv("WHATSAPP_ACCESS_TOKEN")}'
     }
     
     try:
