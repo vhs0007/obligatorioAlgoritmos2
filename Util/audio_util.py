@@ -9,7 +9,7 @@ if not HF_API_KEY:
     raise ValueError("HF_API_KEY no configurada")
 
 MODEL_NAME = "openai/whisper-small"
-HF_API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
+HF_API_URL = f"https://router.huggingface.co/models/{MODEL_NAME}"
 
 
 def convertir_audio_a_wav(binary_audio: bytes) -> bytes:
