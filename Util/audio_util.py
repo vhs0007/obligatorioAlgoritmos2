@@ -2,11 +2,9 @@ import os
 import time
 import tempfile
 import requests
+from google import genai
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_API_KEY")
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY o OPEN_API_KEY no está configurada en las variables de entorno")
-
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def get_transcription(binary_audio: bytes) -> str:
     
@@ -30,15 +28,13 @@ def get_transcription(binary_audio: bytes) -> str:
                         'model': 'whisper-1'
                     }
                     headers = {
-                        'Authorization': f'Bearer {OPENAI_API_KEY}'
+                        'Authorization': f'Bearer {os.getenv("GEMINI_API_KEY")}'
                     }
                     
-                    response = requests.post(
-                        'https://api.openai.com/v1/audio/transcriptions',
-                        headers=headers,
-                        files=files,
-                        data=data,
-                        timeout=60
+                    myfile = client.files.upload(file=temp_file_path)
+
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash", contents=["Transcribe this audio file", myfile]
                     )
                     
                     if response.status_code == 429:
