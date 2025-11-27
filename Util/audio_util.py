@@ -54,10 +54,11 @@ def transcribe_audio_hf(binary_audio: bytes) -> str:
     wav_audio = convertir_audio_a_wav(binary_audio)
     
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    files = {"file": ("audio.wav", wav_audio, "audio/wav")}
     response = requests.post(
         HF_API_URL,
         headers=headers,
-        data=wav_audio,
+        files=files,
         timeout=30
     )
     
@@ -99,12 +100,15 @@ def get_transcription(binary_audio: bytes) -> str:
             
             print(f"📤 Enviando audio WAV a Hugging Face API...")
             headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+            files = {"file": ("audio.wav", wav_audio, "audio/wav")}
             response = requests.post(
                 HF_API_URL,
                 headers=headers,
-                data=wav_audio,
+                files=files,
                 timeout=30
             )
+            
+            print(f"📥 Respuesta recibida: status={response.status_code}, content-type={response.headers.get('content-type', 'unknown')}")
             
             # Manejar rate limiting
             if response.status_code == 429:
@@ -117,9 +121,18 @@ def get_transcription(binary_audio: bytes) -> str:
                     raise Exception(f"429 Too Many Requests después de {max_retries} intentos: {response.text}")
             
             if response.status_code != 200:
+                print(f"❌ Error HTTP: {response.status_code}")
+                print(f"❌ Respuesta: {response.text[:500]}")
                 raise Exception(f"Error en API: {response.status_code} → {response.text}")
             
-            result = response.json()
+            # Parsear JSON de forma segura
+            try:
+                result = response.json()
+            except Exception as json_error:
+                print(f"❌ Error al parsear JSON: {type(json_error).__name__} → {json_error}")
+                print(f"❌ Contenido de respuesta (primeros 500 chars): {response.text[:500]}")
+                raise Exception(f"Error al parsear respuesta JSON: {json_error} → {response.text[:200]}")
+            
             print(f"📝 Tipo de resultado: {type(result)}, contenido: {result}")
             
             # Extraer texto de la respuesta
@@ -140,6 +153,17 @@ def get_transcription(binary_audio: bytes) -> str:
             
             print(f"✅ Transcripción exitosa: {texto[:50]}...")
             return texto
+            
+        except StopIteration as e:
+            print(f"❌ StopIteration capturado en intento {attempt + 1}: {e}")
+            import traceback
+            traceback.print_exc()
+            if attempt < max_retries - 1:
+                delay = base_delay * (attempt + 1)
+                print(f"⚠️ Reintentando en {delay}s...")
+                time.sleep(delay)
+                continue
+            raise Exception(f"StopIteration después de {max_retries} intentos: {e}")
             
         except Exception as error:
             error_type = type(error).__name__
