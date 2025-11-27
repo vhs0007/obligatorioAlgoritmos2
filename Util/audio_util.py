@@ -8,7 +8,7 @@ HF_API_KEY = os.getenv("HF_API_KEY")
 if not HF_API_KEY:
     raise ValueError("HF_API_KEY no configurada")
 
-MODEL_NAME = "openai/whisper-small"
+MODEL_NAME = "openai/whisper-medium"
 HF_API_URL = f"https://router.huggingface.co/models/{MODEL_NAME}"
 
 
