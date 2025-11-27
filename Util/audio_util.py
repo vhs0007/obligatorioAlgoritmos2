@@ -2,60 +2,66 @@ import os
 import requests
 import tempfile
 import time
-from huggingface_hub import InferenceClient
 
 HF_API_KEY = os.getenv("HF_API_KEY")
-
-_client = None
-
-def get_hf_client():
-    """Obtiene o crea el cliente de Hugging Face."""
-    global _client
-    if _client is None:
-        if not HF_API_KEY:
-            raise ValueError("Variable de entorno HF_API_KEY no configurada")
-        _client = InferenceClient(token=HF_API_KEY)
-    return _client
 
 
 def transcribe_audio_hf(binary_audio: bytes) -> str:
     if not HF_API_KEY:
         raise ValueError("Variable de entorno HF_API_KEY no configurada")
     
-    client = get_hf_client()
-    response = client.audio_to_text(
-        model="openai/whisper-tiny",
-        audio_bytes=binary_audio,
+    model = "openai/whisper-small"
+    
+    response = requests.post(
+        f"https://api-inference.huggingface.co/models/{model}",
+        headers={"Authorization": f"Bearer {HF_API_KEY}"},
+        files={"file": ("audio.ogg", binary_audio, "audio/ogg")}
     )
-    return response["text"]
+    
+    if response.status_code != 200:
+        raise Exception(f"Error: {response.status_code} → {response.text}")
+    
+    data = response.json()
+    return data["text"]
 
 
 def get_transcription(binary_audio: bytes) -> str:
     if not HF_API_KEY:
         raise ValueError("Variable de entorno HF_API_KEY no configurada")
     
+    model = "openai/whisper-small"
     max_retries = 2
     base_delay = 2
-    client = get_hf_client()
     
     for attempt in range(max_retries):
         try:
-            response = client.audio_to_text(
-                model="openai/whisper-tiny",
-                audio_bytes=binary_audio,
+            response = requests.post(
+                f"https://api-inference.huggingface.co/models/{model}",
+                headers={"Authorization": f"Bearer {HF_API_KEY}"},
+                files={"file": ("audio.ogg", binary_audio, "audio/ogg")}
             )
-            return response["text"]
-                
-        except Exception as error:
-            error_str = str(error).lower()
-            if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+            
+            if response.status_code == 429:
                 if attempt < max_retries - 1:
                     delay = base_delay * (2 ** attempt)
                     print(f"⚠️ Rate limit alcanzado. Reintentando en {delay} segundos... (intento {attempt + 1}/{max_retries})")
                     time.sleep(delay)
                     continue
                 else:
-                    raise Exception(f"429 Too Many Requests después de {max_retries} intentos: {str(error)}")
+                    raise Exception(f"429 Too Many Requests después de {max_retries} intentos: {response.text}")
+            
+            if response.status_code != 200:
+                raise Exception(f"Error: {response.status_code} → {response.text}")
+            
+            data = response.json()
+            return data["text"]
+                
+        except Exception as error:
+            error_str = str(error).lower()
+            if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+                if attempt == max_retries - 1:
+                    raise error
+                continue
             raise error
 
 
