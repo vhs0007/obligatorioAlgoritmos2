@@ -1,8 +1,8 @@
 import os
 import time
 import io
+import subprocess
 import requests
-from pydub import AudioSegment
 from huggingface_hub import InferenceClient
 
 HF_API_KEY = os.getenv("HF_API_KEY")
@@ -16,14 +16,37 @@ MODEL_NAME = "openai/whisper-small"
 
 def convertir_audio_a_wav(binary_audio: bytes) -> bytes:
     try:
-        print(f"🔄 Convirtiendo audio a WAV, tamaño original: {len(binary_audio)} bytes")
-        audio = AudioSegment.from_file(io.BytesIO(binary_audio))
-        wav_buffer = io.BytesIO()
-        audio.export(wav_buffer, format="wav")
-        wav_buffer.seek(0)
-        wav_bytes = wav_buffer.read()
-        print(f"✅ Audio convertido a WAV, tamaño final: {len(wav_bytes)} bytes")
-        return wav_bytes
+        print(f"🔄 Convirtiendo audio a WAV usando ffmpeg, tamaño original: {len(binary_audio)} bytes")
+        
+        # Crear archivo temporal de entrada
+        input_buffer = io.BytesIO(binary_audio)
+        
+        # Usar ffmpeg para convertir a WAV
+        process = subprocess.Popen(
+            [
+                'ffmpeg',
+                '-i', 'pipe:0',  # Leer desde stdin
+                '-f', 'wav',      # Formato de salida WAV
+                '-ar', '16000',   # Sample rate 16kHz (recomendado para Whisper)
+                '-ac', '1',       # Mono
+                'pipe:1'          # Escribir a stdout
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        stdout, stderr = process.communicate(input=binary_audio)
+        
+        if process.returncode != 0:
+            error_msg = stderr.decode('utf-8', errors='ignore')
+            raise Exception(f"ffmpeg falló con código {process.returncode}: {error_msg}")
+        
+        print(f"✅ Audio convertido a WAV, tamaño final: {len(stdout)} bytes")
+        return stdout
+        
+    except FileNotFoundError:
+        raise Exception("ffmpeg no está instalado o no está en el PATH. Por favor, instala ffmpeg.")
     except Exception as e:
         raise Exception(f"Error al convertir audio: {type(e).__name__} → {e}")
 
