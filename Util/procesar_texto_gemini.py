@@ -2,19 +2,18 @@ import os
 import json
 from google import genai
 from google.genai import types
-from Models.chat import flujo_inicio, flujo_categorias, flujo_productos, flujo_cantidad, flujo_carrito, flujo_confirmacion
 from Util.estado import get_estado
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
-acciones_posibles = {
-    "flujo_inicio": flujo_inicio,
-    "flujo_categorias": flujo_categorias,
-    "flujo_productos": flujo_productos,
-    "flujo_cantidad": flujo_cantidad,
-    "flujo_carrito": flujo_carrito,
-    "flujo_confirmacion": flujo_confirmacion
-}
+acciones_posibles = [
+    "flujo_inicio",
+    "flujo_categorias",
+    "flujo_productos",
+    "flujo_cantidad",
+    "flujo_carrito",
+    "flujo_confirmacion"
+]
 palabras_clave = {
     "menu": "flujo_categorias",
     "productos": "flujo_productos",
@@ -31,7 +30,9 @@ estados_posibles = {
     "confirmacion": "flujo_confirmacion"
 }
 
-def procesar_texto_gemini(texto: str, numero: str) -> str:
+def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
+    if not numero:
+        raise ValueError("El parámetro 'numero' es requerido")
     estado = get_estado(numero)
 
     prompt = f"""Eres un orquestador de flujo de conversación para un sistema de entrega de productos.
