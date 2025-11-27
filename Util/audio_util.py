@@ -1,6 +1,8 @@
 import os
 import time
+import io
 import requests
+from pydub import AudioSegment
 from huggingface_hub import InferenceClient
 
 HF_API_KEY = os.getenv("HF_API_KEY")
@@ -12,10 +14,25 @@ client = InferenceClient(api_key=HF_API_KEY)
 MODEL_NAME = "openai/whisper-small"
 
 
+def convertir_audio_a_wav(binary_audio: bytes) -> bytes:
+    try:
+        print(f"🔄 Convirtiendo audio a WAV, tamaño original: {len(binary_audio)} bytes")
+        audio = AudioSegment.from_file(io.BytesIO(binary_audio))
+        wav_buffer = io.BytesIO()
+        audio.export(wav_buffer, format="wav")
+        wav_buffer.seek(0)
+        wav_bytes = wav_buffer.read()
+        print(f"✅ Audio convertido a WAV, tamaño final: {len(wav_bytes)} bytes")
+        return wav_bytes
+    except Exception as e:
+        raise Exception(f"Error al convertir audio: {type(e).__name__} → {e}")
+
+
 def transcribe_audio_hf(binary_audio: bytes) -> str:
     print(f"🎤 Iniciando transcripción con modelo {MODEL_NAME}, tamaño audio: {len(binary_audio)} bytes")
+    wav_audio = convertir_audio_a_wav(binary_audio)
     result = client.automatic_speech_recognition(
-        audio=binary_audio,
+        audio=wav_audio,
         model=MODEL_NAME
     )
     print(f"📝 Tipo de resultado: {type(result)}, contenido: {result}")
@@ -52,8 +69,9 @@ def get_transcription(binary_audio: bytes) -> str:
     for attempt in range(max_retries):
         try:
             print(f"🔄 Intento {attempt + 1}/{max_retries} de transcripción")
+            wav_audio = convertir_audio_a_wav(binary_audio)
             result = client.automatic_speech_recognition(
-                audio=binary_audio,
+                audio=wav_audio,
                 model=MODEL_NAME
             )
             print(f"📝 Tipo de resultado: {type(result)}, contenido: {result}")

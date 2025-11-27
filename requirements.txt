@@ -10,3 +10,4 @@ networkx>=3.0
 pillow>=10.0
 matplotlib>=3.8.0
 huggingface_hub>=0.20.0
+pydub>=0.25.1
