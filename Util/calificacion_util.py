@@ -1,7 +1,7 @@
 from whatsapp_api import enviar_mensaje_whatsapp, normalizar_numero_telefono
-from Util.database import get_db_connection, Calificaciones, ClientesCalificaciones
+from Util.database import get_db_session, Calificaciones, ClientesCalificaciones, Cliente
 from sqlmodel import Session, select
-from Util.database import get_db_session
+from sqlalchemy import text
 
 def enviar_solicitud_calificacion(numero_cliente):
     numero_cliente_normalizado = normalizar_numero_telefono(numero_cliente)
@@ -77,24 +77,27 @@ def manejar_calificacion(numero, calificacion_id):
         if estrellas < 1 or estrellas > 5:
             return enviar_mensaje_whatsapp(numero, "Calificación inválida. Por favor, selecciona entre 1 y 5 estrellas.")
         
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        numero_limpio = numero.strip().replace("+", "").replace(" ", "").replace("-", "")
-        cur.execute("SELECT idcliente FROM cliente WHERE REPLACE(REPLACE(REPLACE(telefono, '+', ''), ' ', ''), '-', '') LIKE %s", (f"%{numero_limpio}",))
-        cliente_info = cur.fetchone()
-        
-        if not cliente_info:
-            cur.close()
-            conn.close()
-            return enviar_mensaje_whatsapp(numero, "Cliente no encontrado.")
-        
-        id_cliente = cliente_info[0]
-        cur.close()
-        conn.close()
-        
         db = get_db_session()
         try:
+            numero_limpio = numero.strip().replace("+", "").replace(" ", "").replace("-", "")
+            
+            resultado = db.execute(
+                text("SELECT idcliente FROM cliente WHERE REPLACE(REPLACE(REPLACE(telefono, '+', ''), ' ', ''), '-', '') LIKE :numero LIMIT 1"),
+                {"numero": f"%{numero_limpio}%"}
+            ).fetchone()
+            
+            if not resultado:
+                print(f"Cliente no encontrado para número: {numero_limpio}")
+                return enviar_mensaje_whatsapp(numero, "Cliente no encontrado.")
+            
+            id_cliente = resultado[0]
+            
+            cliente = db.query(Cliente).filter(Cliente.idcliente == id_cliente).first()
+            if not cliente:
+                print(f"Cliente con ID {id_cliente} no encontrado después de la búsqueda")
+                return enviar_mensaje_whatsapp(numero, "Cliente no encontrado.")
+            
+            
             calificacion = Calificaciones(
                 estrellas=estrellas
             )
@@ -116,7 +119,9 @@ def manejar_calificacion(numero, calificacion_id):
             
         except Exception as e:
             db.rollback()
-            print(f"Error al guardar calificación: {e}")
+            print(f"Error al guardar calificación: {type(e).__name__} → {e}")
+            import traceback
+            traceback.print_exc()
             return enviar_mensaje_whatsapp(numero, "Hubo un error al guardar tu calificación. Por favor, intenta nuevamente.")
         finally:
             db.close()

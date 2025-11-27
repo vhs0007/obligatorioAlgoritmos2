@@ -39,7 +39,7 @@ class Pedido(SQLModel, table=True):
     estado: str = Field(default="en_carrito")
     fecha_confirmacion: Optional[datetime] = None
     zona: Optional[str] = None 
-    codigo_verificacion: Optional[int] = None  
+    codigo_verificacion: Optional[str] = None  
     id_tanda: Optional[int] = None 
 
 

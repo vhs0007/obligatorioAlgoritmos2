@@ -27,10 +27,6 @@ def paginar_productos(productos, pagina, items_por_pagina=5):
 
 
 def lista_productos(numero, pagina=1, filtro="cat_all", orden_asc=True):
-    """
-    Muestra productos en lista interactiva de WhatsApp.
-    Máximo 5 productos + opciones de navegación (Filtrar, Ordenar, Siguiente, Volver, Volver al Inicio).
-    """
     db = get_db_session()
     try:
         productos = db.query(Producto).all()
@@ -50,42 +46,36 @@ def lista_productos(numero, pagina=1, filtro="cat_all", orden_asc=True):
                 "text": {"body": "📦 No hay productos disponibles en esta categoría."}
             }
         
-        # Construir filas de la lista interactiva (máximo 5 productos)
         rows = []
         for producto in productos_pagina:
             categoria = db.query(Categoria).filter(Categoria.id_categoria == producto.id_categoria).first()
             cat_nombre = categoria.nombre if categoria else "Sin categoría"
-            # Limitar longitud del título para WhatsApp (máximo 24 caracteres)
-            titulo = f"{producto.nombre} - ${producto.precio}"
+            titulo = producto.nombre
             if len(titulo) > 24:
                 titulo = titulo[:21] + "..."
+            descripcion = f"${producto.precio} - {cat_nombre}"
+            if len(descripcion) > 72:
+                descripcion = descripcion[:69] + "..."
             rows.append({
                 "id": f"add_{producto.idproducto}",
                 "title": titulo,
-                "description": cat_nombre
+                "description": descripcion
             })
         
-        # Agregar opciones de navegación según la letra
-        # i. Filtrar (siempre disponible)
         rows.append({"id": "prod_filter", "title": "🔍 Filtrar"})
         
-        # iii. Ordenar por precio
         orden_texto = "⬆️ Ordenar: Barato→Caro" if orden_asc else "⬇️ Ordenar: Caro→Barato"
         rows.append({"id": "prod_order", "title": orden_texto})
         
-        # iv. Siguientes productos (solo si hay más páginas)
         if pagina_actual < total_paginas:
             rows.append({"id": "prod_next", "title": "➡️ Siguientes productos"})
         
-        # v. Volver (si está en página 2+)
         if pagina_actual > 1:
             rows.append({"id": "prod_prev", "title": "⬅️ Volver"})
         
-        # vi. Volver al Inicio (si está en página 3+)
         if pagina_actual > 2:
             rows.append({"id": "prod_home", "title": "🏠 Volver al Inicio"})
-        
-        # Obtener nombre de categoría para el header
+            
         categoria_nombre = "Todas las categorías"
         if filtro != "cat_all":
             try:

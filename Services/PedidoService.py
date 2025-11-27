@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from Services.RepartidorService import RepartidorService
 import math
 import random
+import string
 
 class PedidosService:
     cola_no = []
@@ -60,7 +61,6 @@ class PedidosService:
         cola.append(pedido.idpedido)
         print(f"📦 pedido {pedido.idpedido} encolado en zona {pedido.zona}. Total en cola: {len(cola)}")
         
-        # Si es el primer pedido de la zona, registrar timestamp
         if len(cola) == 1:
             self.registrar_inicio_tanda_memoria(pedido.zona)
     
@@ -126,7 +126,6 @@ class PedidosService:
         
         self.repartidor_service.asignar_tanda(tanda)
         
-        # Limpiar timestamp cuando se crea la tanda
         PedidosService.timestamps_inicio[zona] = None
         
         return tanda
@@ -155,25 +154,22 @@ class PedidosService:
         return tandas_creadas
     
     def registrar_inicio_tanda_memoria(self, zona):
-        """Registra el timestamp de inicio cuando entra el primer pedido a la cola."""
         if PedidosService.timestamps_inicio[zona] is None:
             PedidosService.timestamps_inicio[zona] = datetime.utcnow()
             print(f"🕒 Timestamp de inicio registrado para {zona}")
     
     def revisar_crear_tanda_memoria(self):
-        """Revisa timestamps y crea tandas si pasaron 3 minutos."""
         ahora = datetime.utcnow()
         
         for zona, ts in PedidosService.timestamps_inicio.items():
             if ts is None:
-                continue  # no hay tanda pendiente
+                continue
             
             diff = (ahora - ts).total_seconds()
             
-            if diff >= 180:  # 3 minutos
+            if diff >= 180:
                 print(f"⏰ Pasaron 3 minutos para zona {zona}. Creando tanda...")
                 
-                # Limpiar timestamp antes de intentar crear
                 PedidosService.timestamps_inicio[zona] = None
                 
                 tanda = self.crear_tanda(zona)
@@ -203,7 +199,7 @@ class PedidosService:
             longitud=longitud,
             estado="pendiente",
             fecha_confirmacion=datetime.now(),
-            codigo_verificacion=random.randint(1000, 9999)
+            codigo_verificacion=''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         )
         self.db.add(pedido)
         self.db.commit()

@@ -437,18 +437,23 @@ def calcular_ruta_simple(lat_origen: float, lon_origen: float,
         # Usar el algoritmo de Dijkstra de NetworkX (más simple que nuestra versión)
         ruta = nx.shortest_path(G, nodo_origen, nodo_destino, weight='weight')
         
-        # Calcular distancia y tiempo
+        # Calcular distancia y tiempo (promedio ponderado por distancia)
         distancia_m = 0
-        velocidades = []
+        tiempo_total_min = 0
         
         for i in range(len(ruta) - 1):
             edge_data = G.edges[(ruta[i], ruta[i+1], 0)]
-            distancia_m += edge_data['length']
-            velocidades.append(edge_data['maxspeed'])
+            distancia_seg_m = edge_data['length']
+            velocidad_seg_kmh = edge_data.get('maxspeed', 40)
+            distancia_m += distancia_seg_m
+            
+            # Calcular tiempo por segmento
+            distancia_seg_km = distancia_seg_m / 1000
+            tiempo_seg_min = (distancia_seg_km / velocidad_seg_kmh) * 60
+            tiempo_total_min += tiempo_seg_min
         
         distancia_km = distancia_m / 1000
-        velocidad_promedio = sum(velocidades) / len(velocidades) if velocidades else 40
-        tiempo_min = (distancia_km / velocidad_promedio) * 60
+        tiempo_min = tiempo_total_min
         
         print(f"✅ Ruta encontrada: {distancia_km:.2f}km, {tiempo_min:.1f}min")
         
@@ -585,6 +590,7 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
     
     # Dibujar la ruta simple desde origen hasta destino
     distancia_total = 0
+    tiempo_total_min = 0
     velocidades = []
     
     try:
@@ -598,18 +604,26 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
             G.edges[edge]["alpha"] = 1
             G.edges[edge]["linewidth"] = 3
             
-            # Calcular distancia
-            distancia_total += G.edges[edge]["length"]
-            velocidades.append(G.edges[edge]["maxspeed"])
+            # Calcular distancia y tiempo por segmento
+            distancia_seg_m = G.edges[edge]["length"]
+            velocidad_seg_kmh = G.edges[edge].get("maxspeed", 40)
+            distancia_total += distancia_seg_m
+            velocidades.append(velocidad_seg_kmh)
+            
+            # Calcular tiempo por segmento
+            distancia_seg_km = distancia_seg_m / 1000
+            tiempo_seg_min = (distancia_seg_km / velocidad_seg_kmh) * 60
+            tiempo_total_min += tiempo_seg_min
     except Exception as e:
         print(f"⚠️ No se pudo dibujar ruta: {e}")
         distancia_total = 0
+        tiempo_total_min = 0
         velocidades = []
     
     # Calcular estadísticas
     distancia_km = distancia_total / 1000
     velocidad_promedio = sum(velocidades) / len(velocidades) if velocidades else 40
-    tiempo_min = (distancia_km / velocidad_promedio) * 60
+    tiempo_min = tiempo_total_min
     
     # Crear título
     if info_tanda:

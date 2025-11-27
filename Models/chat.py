@@ -162,7 +162,7 @@ class Chat:
                 resultado = handle_interactive(numero, interactive)
                 return resultado
 
-            return "Mensaje no válido para un repartidor."
+            return enviar_mensaje_whatsapp(numero, "Eres repartidor no puedo procesar un mensaje que no sea conversacion")
 
         if texto_strip.startswith("calificar_"):
             return manejar_calificacion(numero, texto_strip)
@@ -182,7 +182,6 @@ class Chat:
 
 
     def flujo_inicio(self, numero, mensaje):
-        # Palabras clave relevantes: verificar si alguna está contenida en el mensaje
         if "menu" in mensaje or "carta" in mensaje or "menú" in mensaje:
             self.set_waiting_for(numero, "flujo_categorias")
             estado = get_estado(numero)
@@ -198,7 +197,6 @@ class Chat:
             self.chat_service.registrar_mensaje(self.id_chat, res["body"], es_cliente=False)
             return enviar_mensaje_whatsapp(numero, res["body"])
 
-        # Mensajes no relevantes: usar comparaciones exactas (==)
         if mensaje == "hola" or mensaje == "hi" or mensaje == "buenas" or mensaje == "buenos dias" or mensaje == "buenas tardes" or mensaje == "buenas noches":
             respuesta = "👋 ¡Hola! Bienvenido a GordoEats 🍔\n\nEscribí *menu* para ver nuestros productos o *carrito* para ver tu pedido."
             self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
@@ -383,6 +381,12 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, "📍 Enviá tu ubicación para calcular el envío.")
 
     def handle_location(self, numero, contenido):
+        # Verificar si es repartidor al inicio
+        repartidor_service = RepartidorService()
+        repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
+        if repartidor:
+            return enviar_mensaje_whatsapp(numero, "Eres repartidor no puedo procesar un mensaje que no sea conversacion")
+        
         try:
             partes = [p.strip() for p in contenido.split(",")]
             if len(partes) != 2:
@@ -450,6 +454,7 @@ class Chat:
 
             self.chat_service.registrar_mensaje(id_chat, msg, es_cliente=False)
 
+            clear_waiting_for(numero)
             return enviar_mensaje_whatsapp(numero, msg)
 
         except Exception as e:
