@@ -22,13 +22,13 @@ def get_transcription(binary_audio: bytes) -> str:
                 
                 myfile = client.files.upload(file=temp_file_path)
 
-                    response = client.models.generate_content(
-                        model="gemini-2.5-flash", contents=["Transcribe this audio file", myfile]
-                    )
-                    
-                    texto = response.text
-                    print(f"✅ Transcripción exitosa: {texto[:50]}...")
-                    return texto
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash", contents=["Transcribe this audio file", myfile]
+                )
+                
+                texto = response.text
+                print(f"✅ Transcripción exitosa: {texto[:50]}...")
+                return texto
                     
             except Exception as error:
                 print(f"❌ Error en intento {attempt + 1}: {type(error).__name__} → {error}")
