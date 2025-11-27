@@ -34,14 +34,38 @@ def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
     if not numero:
         raise ValueError("El parámetro 'numero' es requerido")
     estado = get_estado(numero)
+    waiting_for = estado.get("waiting_for")
+    estado_actual = estado.get("state", "inicio")
 
     prompt = f"""Eres un orquestador de flujo de conversación para un sistema de entrega de productos.
-El usuario escribió: {texto}, el estado actual es: {estado},
-las palabras clave posibles son: {palabras_clave},
-las acciones posibles son: {acciones_posibles} devuelve la acción a ejecutar y el estado actualizado los posibles estados son: {estados_posibles} según el mensaje del usuario correspondiente.
-Si el mensaje contiene una palabra clave, devuelve la acción correspondiente.
-Si no contiene ninguna palabra clave, devuelve el flujo de inicio o una acción similar.
-Devuelve un JSON con la acción a ejecutar y el estado actualizado.
+
+CONTEXTO ACTUAL:
+- Estado del usuario: {estado_actual}
+- Función esperada: {waiting_for if waiting_for else "ninguna"}
+- Mensaje del usuario: "{texto}"
+
+ACCIONES DISPONIBLES: {acciones_posibles}
+
+PALABRAS CLAVE:
+- "menu" o "menú" → flujo_categorias
+- "productos" → flujo_productos  
+- "carrito" → flujo_carrito
+- "confirmar" → flujo_confirmacion
+
+ESTADOS POSIBLES: {list(estados_posibles.keys())}
+
+INSTRUCCIONES:
+1. Si el mensaje contiene una palabra clave, devuelve la acción correspondiente.
+2. Si el estado actual es "esperando_cantidad" o waiting_for es "flujo_cantidad" y el mensaje es un número, devuelve "flujo_cantidad".
+3. Si el estado actual es "en_carrito" y el mensaje es "cancelar" o "salir", el sistema lo manejará automáticamente (no necesitas procesarlo).
+4. Si no hay contexto claro, devuelve "flujo_inicio" para mostrar el menú.
+
+IMPORTANTE: 
+- Si el usuario escribe solo números y está esperando cantidad, devuelve "flujo_cantidad".
+- Si el usuario escribe "cancelar" o "salir", el sistema lo maneja automáticamente.
+- Siempre devuelve un JSON válido con "accion" y "estado".
+
+Devuelve SOLO un JSON con este formato:
 {{
     "accion": "flujo_inicio",
     "estado": "inicio"
@@ -62,34 +86,28 @@ Devuelve un JSON con la acción a ejecutar y el estado actualizado.
             print("⚠️ Respuesta vacía de Gemini, usando acción por defecto")
             return {"accion": "flujo_inicio", "estado": "inicio"}
         
-        # Intentar extraer JSON de la respuesta (puede tener texto adicional)
         response_text = response_text.strip()
         
-        # Buscar el JSON en la respuesta (puede estar entre ```json o solo ser el JSON)
         if "```json" in response_text:
-            # Extraer JSON de un bloque de código
             start = response_text.find("```json") + 7
             end = response_text.find("```", start)
             if end != -1:
                 response_text = response_text[start:end].strip()
         elif "```" in response_text:
-            # Extraer JSON de un bloque de código sin especificar json
             start = response_text.find("```") + 3
             end = response_text.find("```", start)
             if end != -1:
                 response_text = response_text[start:end].strip()
         
-        # Buscar el primer { y último } para extraer solo el JSON
         first_brace = response_text.find("{")
         last_brace = response_text.rfind("}")
         
         if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
             response_text = response_text[first_brace:last_brace + 1]
         
-        # Parsear el JSON
         resultado = json.loads(response_text)
+        print(f"Resultado: {resultado}")
         
-        # Validar que tenga los campos esperados
         if "accion" not in resultado:
             print(f"⚠️ Respuesta de Gemini no tiene 'accion', usando por defecto. Respuesta: {response_text}")
             return {"accion": "flujo_inicio", "estado": resultado.get("estado", "inicio")}

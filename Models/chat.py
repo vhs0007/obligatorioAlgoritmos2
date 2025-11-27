@@ -177,6 +177,35 @@ class Chat:
         if flujo_actual:
             return flujo_actual(numero, texto_lower)
 
+        # Manejar comandos especiales antes de llamar a Gemini
+        estado = get_estado(numero)
+        estado_actual = estado.get("state", "inicio")
+        waiting_for = estado.get("waiting_for")
+        
+        # Si el usuario escribe "cancelar" o "salir", cancelar el pedido
+        if texto_lower in ("cancelar", "salir", "cancel"):
+            self.clear_state(numero)
+            clear_cart(numero)
+            return enviar_mensaje_whatsapp(numero, "❌ Pedido cancelado. Escribí *menu* para comenzar de nuevo.")
+        
+        # Si está esperando cantidad (waiting_for es "flujo_cantidad"), procesar directamente
+        if waiting_for == "flujo_cantidad":
+            # Intentar procesar como cantidad (puede ser solo número o número con texto)
+            partes = texto_lower.split()
+            if partes:
+                try:
+                    cantidad = int(partes[0])
+                    if cantidad > 0:
+                        return self.flujo_cantidad(numero, texto_lower)
+                except ValueError:
+                    # Si no es un número válido, continuar con el flujo normal
+                    pass
+        
+        # Si está en el carrito, manejar comandos directamente
+        if estado_actual == "en_carrito" or waiting_for == "flujo_carrito":
+            if texto_lower in ("1", "quitar", "eliminar", "2", "seguir", "seguir pidiendo", "3", "confirmar"):
+                return self.flujo_carrito(numero, texto_lower)
+
         try:
             salida_gemini = procesar_texto_gemini(
                 texto_strip,
@@ -284,6 +313,7 @@ class Chat:
             prod_id = mensaje.replace("add_", "")
             estado_global = get_estado(numero)
             estado_global["context_data"] = {"prod_id": prod_id}
+            estado_global["state"] = "esperando_cantidad"
             self.set_waiting_for(numero, "flujo_cantidad", {"prod_id": prod_id})
             return enviar_mensaje_whatsapp(numero, "📝 Escribí la cantidad con observación (ej: 2 sin cebolla)")
 
