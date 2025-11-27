@@ -3,15 +3,13 @@ import time
 import io
 import subprocess
 import requests
-from huggingface_hub import InferenceClient
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 if not HF_API_KEY:
     raise ValueError("HF_API_KEY no configurada")
 
-client = InferenceClient(api_key=HF_API_KEY)
-
-MODEL_NAME = "openai/whisper-medium"
+MODEL_NAME = "openai/whisper-small"
+HF_API_URL = f"https://api-inference.huggingface.co/models/{MODEL_NAME}"
 
 
 def convertir_audio_a_wav(binary_audio: bytes) -> bytes:
@@ -54,28 +52,33 @@ def convertir_audio_a_wav(binary_audio: bytes) -> bytes:
 def transcribe_audio_hf(binary_audio: bytes) -> str:
     print(f"🎤 Iniciando transcripción con modelo {MODEL_NAME}, tamaño audio: {len(binary_audio)} bytes")
     wav_audio = convertir_audio_a_wav(binary_audio)
-    result = client.automatic_speech_recognition(
-        audio=wav_audio,
-        model=MODEL_NAME
+    
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    response = requests.post(
+        HF_API_URL,
+        headers=headers,
+        data=wav_audio,
+        timeout=30
     )
+    
+    if response.status_code != 200:
+        raise Exception(f"Error en API: {response.status_code} → {response.text}")
+    
+    result = response.json()
     print(f"📝 Tipo de resultado: {type(result)}, contenido: {result}")
     
-    # Manejar diferentes formatos de respuesta
-    if hasattr(result, 'text'):
-        texto = result.text
-    elif isinstance(result, dict):
+    # Extraer texto de la respuesta
+    texto = None
+    if isinstance(result, dict):
         texto = result.get('text') or result.get('generated_text', '')
     elif isinstance(result, str):
         texto = result
-    else:
-        # Si es un iterador, obtener el primer elemento
-        try:
-            if hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
-                texto = next(iter(result))
-                if isinstance(texto, dict):
-                    texto = texto.get('text') or texto.get('generated_text', '')
-        except StopIteration:
-            raise Exception(f"No se obtuvo transcripción. Resultado vacío: {result}")
+    elif isinstance(result, list) and len(result) > 0:
+        first_item = result[0]
+        if isinstance(first_item, dict):
+            texto = first_item.get('text') or first_item.get('generated_text', '')
+        elif isinstance(first_item, str):
+            texto = first_item
     
     if not texto:
         raise Exception(f"No se obtuvo transcripción. Formato inesperado: {type(result)} → {result}")
@@ -95,101 +98,48 @@ def get_transcription(binary_audio: bytes) -> str:
             wav_audio = convertir_audio_a_wav(binary_audio)
             
             print(f"📤 Enviando audio WAV a Hugging Face API...")
-            result = client.automatic_speech_recognition(
-                audio=wav_audio,
-                model=MODEL_NAME
+            headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+            response = requests.post(
+                HF_API_URL,
+                headers=headers,
+                data=wav_audio,
+                timeout=30
             )
             
-            print(f"📝 Tipo de resultado: {type(result)}")
-            print(f"📝 Resultado repr: {repr(result)}")
+            # Manejar rate limiting
+            if response.status_code == 429:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (attempt + 1)
+                    print(f"⚠️ Rate limit. Reintentando en {delay}s...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    raise Exception(f"429 Too Many Requests después de {max_retries} intentos: {response.text}")
             
-            # Intentar obtener información del resultado sin acceder a .text directamente
+            if response.status_code != 200:
+                raise Exception(f"Error en API: {response.status_code} → {response.text}")
+            
+            result = response.json()
+            print(f"📝 Tipo de resultado: {type(result)}, contenido: {result}")
+            
+            # Extraer texto de la respuesta
             texto = None
-            
-            # Primero verificar si es un dict
             if isinstance(result, dict):
                 texto = result.get('text') or result.get('generated_text', '')
-                print(f"✅ Texto obtenido de dict: {texto[:50] if texto else 'None'}...")
-            
-            # Si no funcionó, intentar como string
             elif isinstance(result, str):
                 texto = result
-                print(f"✅ Texto obtenido como string: {texto[:50] if texto else 'None'}...")
-            
-            # Si tiene atributo text, intentar accederlo con cuidado
-            elif hasattr(result, 'text'):
-                print(f"🔄 Resultado tiene atributo 'text', intentando acceder...")
-                try:
-                    # Verificar si text es una propiedad o método
-                    text_attr = getattr(result, 'text', None)
-                    if callable(text_attr):
-                        texto = text_attr()
-                    else:
-                        texto = text_attr
-                    print(f"✅ Texto obtenido de result.text: {texto[:50] if texto else 'None'}...")
-                except StopIteration as e:
-                    print(f"❌ StopIteration al acceder a result.text: {e}")
-                    # Intentar convertir a dict o string
-                    try:
-                        if hasattr(result, '__dict__'):
-                            result_dict = result.__dict__
-                            texto = result_dict.get('text') or result_dict.get('generated_text', '')
-                            print(f"✅ Texto obtenido de __dict__: {texto[:50] if texto else 'None'}...")
-                    except Exception as e2:
-                        print(f"❌ Error al acceder a __dict__: {type(e2).__name__} → {e2}")
-                except Exception as e:
-                    print(f"❌ Error al acceder a result.text: {type(e).__name__} → {e}")
-            
-            # Si es un iterador, intentar obtener elementos
-            if not texto and hasattr(result, '__iter__') and not isinstance(result, (str, bytes, dict)):
-                print(f"🔄 Intentando iterar sobre el resultado...")
-                try:
-                    # Convertir a lista para evitar problemas con iteradores
-                    result_list = list(result)
-                    print(f"📋 Resultado convertido a lista, longitud: {len(result_list)}")
-                    if result_list:
-                        first_item = result_list[0]
-                        print(f"📋 Primer elemento: {first_item}, tipo: {type(first_item)}")
-                        if isinstance(first_item, dict):
-                            texto = first_item.get('text') or first_item.get('generated_text', '')
-                        elif hasattr(first_item, 'text'):
-                            try:
-                                texto = first_item.text if not callable(first_item.text) else first_item.text()
-                            except StopIteration:
-                                texto = None
-                        elif isinstance(first_item, str):
-                            texto = first_item
-                except StopIteration as e:
-                    print(f"❌ StopIteration al iterar: {e}")
-                    raise Exception(f"No se obtuvo transcripción. Iterador vacío: {result}")
-                except Exception as e:
-                    print(f"❌ Error al iterar: {type(e).__name__} → {e}")
+            elif isinstance(result, list) and len(result) > 0:
+                first_item = result[0]
+                if isinstance(first_item, dict):
+                    texto = first_item.get('text') or first_item.get('generated_text', '')
+                elif isinstance(first_item, str):
+                    texto = first_item
             
             if not texto:
-                # Último intento: convertir a string
-                try:
-                    texto = str(result)
-                    if texto and texto != repr(result):
-                        print(f"✅ Texto obtenido de str(result): {texto[:50]}...")
-                    else:
-                        raise Exception(f"No se obtuvo transcripción. Formato inesperado: {type(result)} → {result}")
-                except:
-                    raise Exception(f"No se obtuvo transcripción. Formato inesperado: {type(result)} → {result}")
+                raise Exception(f"No se obtuvo transcripción. Formato inesperado: {type(result)} → {result}")
             
             print(f"✅ Transcripción exitosa: {texto[:50]}...")
             return texto
-
-        except StopIteration as e:
-            print(f"❌ StopIteration en intento {attempt + 1}: {e}")
-            print(f"📋 Stack trace completo:")
-            import traceback
-            traceback.print_exc()
-            if attempt < max_retries - 1:
-                delay = base_delay * (attempt + 1)
-                print(f"⚠️ Reintentando en {delay}s...")
-                time.sleep(delay)
-                continue
-            raise Exception(f"StopIteration después de {max_retries} intentos: {e}")
             
         except Exception as error:
             error_type = type(error).__name__
