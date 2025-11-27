@@ -37,38 +37,124 @@ def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
     waiting_for = estado.get("waiting_for")
     estado_actual = estado.get("state", "inicio")
 
+    # Determinar opciones disponibles según el estado
+    opciones_disponibles = []
+    if estado_actual == "inicio" or not estado_actual:
+        opciones_disponibles = [
+            "- 'menu' o 'menú' → Ver categorías de productos",
+            "- 'carrito' → Ver carrito actual",
+            "- 'ayuda' → Ver ayuda"
+        ]
+    elif estado_actual == "viendo_categorias" or waiting_for == "flujo_categorias":
+        opciones_disponibles = [
+            "- 'menu' o 'menú' → Ver categorías (ya está viendo)",
+            "- Seleccionar una categoría (se hace con botones interactivos)",
+            "- 'carrito' → Ver carrito",
+            "- 'ayuda' → Ver ayuda"
+        ]
+    elif estado_actual == "viendo_productos" or waiting_for == "flujo_productos":
+        opciones_disponibles = [
+            "- Seleccionar un producto (se hace con botones interactivos)",
+            "- 'carrito' → Ver carrito",
+            "- 'menu' → Volver a categorías",
+            "- 'ayuda' → Ver ayuda"
+        ]
+    elif estado_actual == "esperando_cantidad" or waiting_for == "flujo_cantidad":
+        opciones_disponibles = [
+            "- Escribir un número (cantidad) → Ej: '2' o '2 sin cebolla'",
+            "- 'cancelar' → Cancelar y volver al inicio"
+        ]
+    elif estado_actual == "en_carrito" or waiting_for == "flujo_carrito":
+        opciones_disponibles = [
+            "- '1', 'quitar' o 'eliminar' → Quitar producto del carrito",
+            "- '2', 'seguir' o 'seguir pidiendo' → Continuar agregando productos",
+            "- '3' o 'confirmar' → Confirmar pedido y enviar ubicación",
+            "- 'carrito' → Ver carrito nuevamente",
+            "- 'cancelar' o 'salir' → Cancelar pedido"
+        ]
+    elif estado_actual == "confirmando" or waiting_for == "flujo_confirmacion":
+        opciones_disponibles = [
+            "- Enviar ubicación (latitud, longitud) → Ej: '-31.38, -57.96'",
+            "- 'cancelar' o 'salir' → Cancelar pedido"
+        ]
+    else:
+        opciones_disponibles = [
+            "- 'menu' → Ver menú",
+            "- 'carrito' → Ver carrito",
+            "- 'ayuda' → Ver ayuda"
+        ]
+
+    opciones_texto = "\n".join(opciones_disponibles)
+
+    # Construir información sobre waiting_for
+    info_waiting_for = ""
+    if waiting_for:
+        info_waiting_for = f"""
+IMPORTANTE - FUNCIÓN ESPERADA ACTIVA:
+El sistema está esperando que el usuario responda a: "{waiting_for}"
+Esto significa que el usuario está en medio de un flujo específico.
+
+DEBES EVALUAR:
+1. ¿El mensaje del usuario responde a lo que se espera en "{waiting_for}"?
+   - Si SÍ → establece "respetar_waiting_for": true y devuelve la acción correspondiente
+   - Si NO (el usuario quiere cambiar de flujo, ej: escribe "menu", "carrito", "cancelar") → establece "respetar_waiting_for": false y cambia la acción
+
+Ejemplos:
+- Si waiting_for es "flujo_cantidad" y el usuario escribe "2" → respetar_waiting_for: true, accion: "flujo_cantidad"
+- Si waiting_for es "flujo_cantidad" y el usuario escribe "menu" → respetar_waiting_for: false, accion: "flujo_categorias"
+- Si waiting_for es "flujo_carrito" y el usuario escribe "1" → respetar_waiting_for: true, accion: "flujo_carrito"
+- Si waiting_for es "flujo_carrito" y el usuario escribe "menu" → respetar_waiting_for: false, accion: "flujo_categorias"
+"""
+
     prompt = f"""Eres un orquestador de flujo de conversación para un sistema de entrega de productos.
 
 CONTEXTO ACTUAL:
 - Estado del usuario: {estado_actual}
-- Función esperada: {waiting_for if waiting_for else "ninguna"}
+- Función esperada (waiting_for): {waiting_for if waiting_for else "ninguna"}
 - Mensaje del usuario: "{texto}"
+{info_waiting_for}
 
-ACCIONES DISPONIBLES: {acciones_posibles}
+OPCIONES DISPONIBLES EN ESTE ESTADO:
+{opciones_texto}
 
-PALABRAS CLAVE:
-- "menu" o "menú" → flujo_categorias
-- "productos" → flujo_productos  
-- "carrito" → flujo_carrito
-- "confirmar" → flujo_confirmacion
+ACCIONES DEL SISTEMA DISPONIBLES: {acciones_posibles}
 
-ESTADOS POSIBLES: {list(estados_posibles.keys())}
+PALABRAS CLAVE Y SUS ACCIONES:
+- "menu" o "menú" → flujo_categorias (mostrar categorías)
+- "carrito" → flujo_carrito (ver carrito)
+- "ayuda" → Mostrar ayuda (comando especial)
+- "productos" → flujo_productos (ver productos)
+- "confirmar" → flujo_confirmacion (confirmar pedido)
 
-INSTRUCCIONES:
-1. Si el mensaje contiene una palabra clave, devuelve la acción correspondiente.
-2. Si el estado actual es "esperando_cantidad" o waiting_for es "flujo_cantidad" y el mensaje es un número, devuelve "flujo_cantidad".
-3. Si el estado actual es "en_carrito" y el mensaje es "cancelar" o "salir", el sistema lo manejará automáticamente (no necesitas procesarlo).
-4. Si no hay contexto claro, devuelve "flujo_inicio" para mostrar el menú.
+COMANDOS ESPECIALES DEL CARRITO (cuando estado es "en_carrito"):
+- "1", "quitar", "eliminar" → Quitar producto (se maneja en flujo_carrito)
+- "2", "seguir", "seguir pidiendo" → Continuar comprando (se maneja en flujo_carrito)
+- "3", "confirmar" → Confirmar pedido (se maneja en flujo_carrito)
+
+NOTA: Los comandos técnicos como "cat_*", "prod_*", "add_*" son comandos internos de botones interactivos y NO deben procesarse aquí.
+
+INSTRUCCIONES DE ORQUESTACIÓN:
+1. Si hay waiting_for activo, EVALÚA primero si el mensaje responde a lo esperado o quiere cambiar de flujo
+2. Si el mensaje es "menu", "menú" o similar → devuelve "flujo_categorias" (respetar_waiting_for: false)
+3. Si el mensaje es "carrito" → devuelve "flujo_carrito" (respetar_waiting_for: false si hay otro waiting_for)
+4. Si el mensaje es "ayuda" → devuelve "flujo_inicio" (respetar_waiting_for: false)
+5. Si waiting_for es "flujo_cantidad" y el mensaje empieza con un número → respetar_waiting_for: true, accion: "flujo_cantidad"
+6. Si waiting_for es "flujo_carrito" y el mensaje es "1", "2", "3", "quitar", "seguir", "confirmar" → respetar_waiting_for: true, accion: "flujo_carrito"
+7. Si waiting_for es "flujo_confirmacion" y el mensaje parece una ubicación (dos números separados por coma) → respetar_waiting_for: true, accion: "flujo_confirmacion"
+8. Si no hay contexto claro o el mensaje no coincide con ninguna opción → devuelve "flujo_inicio" (respetar_waiting_for: false)
 
 IMPORTANTE: 
-- Si el usuario escribe solo números y está esperando cantidad, devuelve "flujo_cantidad".
-- Si el usuario escribe "cancelar" o "salir", el sistema lo maneja automáticamente.
-- Siempre devuelve un JSON válido con "accion" y "estado".
+- Siempre devuelve un JSON válido con "accion", "estado" y "respetar_waiting_for"
+- El "estado" debe ser uno de: {list(estados_posibles.keys())}
+- Si el usuario escribe algo que no entiendes, redirige a "flujo_inicio"
+- Si cambias de flujo (respetar_waiting_for: false), puedes opcionalmente incluir "actualizar_waiting_for" con el nuevo flujo esperado
 
 Devuelve SOLO un JSON con este formato:
 {{
     "accion": "flujo_inicio",
-    "estado": "inicio"
+    "estado": "inicio",
+    "respetar_waiting_for": false,
+    "actualizar_waiting_for": "flujo_categorias" (opcional, solo si quieres establecer un nuevo waiting_for)
 }}"""
     try:
         response = client.models.generate_content(
@@ -107,11 +193,22 @@ Devuelve SOLO un JSON con este formato:
         
         resultado = json.loads(response_text)
         print(f"Resultado: {resultado}")
-        
+
         if "accion" not in resultado:
             print(f"⚠️ Respuesta de Gemini no tiene 'accion', usando por defecto. Respuesta: {response_text}")
-            return {"accion": "flujo_inicio", "estado": resultado.get("estado", "inicio")}
+            return {
+                "accion": "flujo_inicio",
+                "estado": resultado.get("estado", "inicio"),
+                "respetar_waiting_for": False
+            }
+
+        # Asegurar que los campos adicionales tengan valores por defecto
+        resultado.setdefault("respetar_waiting_for", False)
+        resultado.setdefault("estado", "inicio")
         
+        # Si no hay actualizar_waiting_for pero respetar_waiting_for es true, no necesitamos actualizar
+        # Si respetar_waiting_for es false y hay una nueva acción, limpiar waiting_for (se hace en handle_text)
+
         return resultado
         
     except json.JSONDecodeError as e:

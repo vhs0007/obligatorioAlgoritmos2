@@ -173,39 +173,22 @@ class Chat:
         if not self.id_chat:
             self.id_chat = f"chat_{numero}"
 
-        flujo_actual = self.get_waiting_function(numero)
-        if flujo_actual:
-            return flujo_actual(numero, texto_lower)
+        # Manejar comandos técnicos interactivos directamente (vienen de botones de WhatsApp)
+        # Estos NO deben pasar por Gemini porque son comandos técnicos del sistema
+        if texto_strip.startswith(("cat_", "prod_", "add_")):
+            if texto_strip.startswith("cat_"):
+                return self.flujo_categorias(numero, texto_lower)
+            elif texto_strip.startswith("prod_") or texto_strip.startswith("add_"):
+                return self.flujo_productos(numero, texto_lower)
 
-        # Manejar comandos especiales antes de llamar a Gemini
-        estado = get_estado(numero)
-        estado_actual = estado.get("state", "inicio")
-        waiting_for = estado.get("waiting_for")
-        
-        # Si el usuario escribe "cancelar" o "salir", cancelar el pedido
+        # Manejar comando crítico de cancelar antes de Gemini
         if texto_lower in ("cancelar", "salir", "cancel"):
             self.clear_state(numero)
             clear_cart(numero)
             return enviar_mensaje_whatsapp(numero, "❌ Pedido cancelado. Escribí *menu* para comenzar de nuevo.")
-        
-        # Si está esperando cantidad (waiting_for es "flujo_cantidad"), procesar directamente
-        if waiting_for == "flujo_cantidad":
-            # Intentar procesar como cantidad (puede ser solo número o número con texto)
-            partes = texto_lower.split()
-            if partes:
-                try:
-                    cantidad = int(partes[0])
-                    if cantidad > 0:
-                        return self.flujo_cantidad(numero, texto_lower)
-                except ValueError:
-                    # Si no es un número válido, continuar con el flujo normal
-                    pass
-        
-        # Si está en el carrito, manejar comandos directamente
-        if estado_actual == "en_carrito" or waiting_for == "flujo_carrito":
-            if texto_lower in ("1", "quitar", "eliminar", "2", "seguir", "seguir pidiendo", "3", "confirmar"):
-                return self.flujo_carrito(numero, texto_lower)
 
+        # TODOS los demás mensajes de texto pasan por Gemini para orquestación
+        # Gemini recibirá el waiting_for como contexto y decidirá qué hacer
         try:
             salida_gemini = procesar_texto_gemini(
                 texto_strip,
@@ -215,14 +198,35 @@ class Chat:
 
             if salida_gemini and isinstance(salida_gemini, dict):
                 accion = salida_gemini.get("accion")
+                respetar_waiting_for = salida_gemini.get("respetar_waiting_for", False)
+                actualizar_waiting_for = salida_gemini.get("actualizar_waiting_for")
+                
+                # Si Gemini indica que debe respetar el waiting_for actual
+                if respetar_waiting_for:
+                    estado = get_estado(numero)
+                    waiting_for_actual = estado.get("waiting_for")
+                    if waiting_for_actual and waiting_for_actual in self.function_map:
+                        return self.function_map[waiting_for_actual](numero, texto_lower)
+                
+                # Si Gemini proporciona un nuevo waiting_for, actualizarlo
+                if actualizar_waiting_for:
+                    context_data = salida_gemini.get("context_data")
+                    self.set_waiting_for(numero, actualizar_waiting_for, context_data)
+                elif not respetar_waiting_for and accion:
+                    # Si cambió de flujo, limpiar waiting_for
+                    clear_waiting_for(numero)
+                
+                # Ejecutar la acción determinada por Gemini
                 if accion and (accion in self.function_map or accion in self.function_graph):
                     if accion in self.function_map:
                         return self.function_map[accion](numero, texto_lower)
                     elif accion in self.function_graph:
                         return self.function_graph[accion]['function'](numero, texto_lower)
+                
                 mensaje_gemini = salida_gemini.get("mensaje")
                 if mensaje_gemini:
                     return enviar_mensaje_whatsapp(numero, mensaje_gemini)
+            
             return self.flujo_inicio(numero, texto_lower)
         except Exception as e:
             print(f"Error en procesar_texto_gemini: {type(e).__name__} -> {e}")
@@ -296,8 +300,9 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, payload)
         
         if mensaje == "prod_filter":
-            self.set_waiting_for(numero, "flujo_categorias")
+            # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
             estado["state"] = "viendo_categorias"
+            clear_waiting_for(numero)
             mensaje_menu = menu_categorias(numero, estado.get("cat_page", 1))
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
@@ -340,9 +345,12 @@ class Chat:
         if not ok:
             return enviar_mensaje_whatsapp(numero, f"❌ Error al agregar: {err}")
 
-        self.set_waiting_for(numero, "flujo_productos")
+        # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
         estado = get_estado(numero)
         estado["state"] = "en_carrito"
+        # Limpiar context_data ya que se procesó la cantidad
+        estado["context_data"] = {}
+        clear_waiting_for(numero)
         
         respuesta = f"✅ {cantidad} agregado(s) al carrito.\nEscribí *carrito* para ver tu pedido"
         self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
@@ -351,18 +359,20 @@ class Chat:
 
     def flujo_carrito(self, numero, mensaje):
         if mensaje in ("2", "seguir", "seguir pidiendo"):
-            self.set_waiting_for(numero, "flujo_categorias")
+            # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
             estado["cat_page"] = estado.get("cat_page", 1)
+            clear_waiting_for(numero)
             mensaje_menu = menu_categorias(numero, estado["cat_page"])
             self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
         if mensaje in ("3", "confirmar"):
-            self.set_waiting_for(numero, "flujo_confirmacion")
+            # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
             estado = get_estado(numero)
             estado["state"] = "confirmando"
+            clear_waiting_for(numero)
             respuesta = "📍 Enviá tu ubicación para calcular el envío."
             self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
             return enviar_mensaje_whatsapp(numero, respuesta)
