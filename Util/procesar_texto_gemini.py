@@ -34,18 +34,17 @@ estados_posibles = {
 def procesar_texto_gemini(texto: str, numero: str) -> str:
     estado = get_estado(numero)
 
-    prompt = f" eres un orquestador de flujo de conversacion para un sistema de entrega de productos.
-        el usuario escribio: {texto}, el estado actual es: {estado},
-        las palabras clave posibles son: {palabras_clave},
-        las acciones posibles son: {acciones_posibles} devuelve la accion a ejecutar y el estado actualizado los posibles estados son: {estados_posibles} segun el mensaje del usuario correspondiente.
-        si el mensaje contiene una palabra clave, devuelve la accion correspondiente.
-        si no contiene ninguna palabra clave, devuelve el flujo de inicio o una accion similar
-        devolve un json con la accion a ejecutar y el estado actualizado.
-        {
-            "accion": "flujo_inicio",
-            "estado": "inicio"
-        }
-        "
+    prompt = f"""Eres un orquestador de flujo de conversación para un sistema de entrega de productos.
+El usuario escribió: {texto}, el estado actual es: {estado},
+las palabras clave posibles son: {palabras_clave},
+las acciones posibles son: {acciones_posibles} devuelve la acción a ejecutar y el estado actualizado los posibles estados son: {estados_posibles} según el mensaje del usuario correspondiente.
+Si el mensaje contiene una palabra clave, devuelve la acción correspondiente.
+Si no contiene ninguna palabra clave, devuelve el flujo de inicio o una acción similar.
+Devuelve un JSON con la acción a ejecutar y el estado actualizado.
+{{
+    "accion": "flujo_inicio",
+    "estado": "inicio"
+}}"""
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=[prompt, "Devolveme sólo un JSON en la respuesta, sin explicaciones."],
