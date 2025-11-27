@@ -20,18 +20,7 @@ def get_transcription(binary_audio: bytes) -> str:
             try:
                 print(f"🔄 Intento {attempt + 1}/{max_retries} de transcripción")
                 
-                with open(temp_file_path, 'rb') as audio_file:
-                    files = {
-                        'file': ('audio.ogg', audio_file, 'audio/ogg')
-                    }
-                    data = {
-                        'model': 'whisper-1'
-                    }
-                    headers = {
-                        'Authorization': f'Bearer {os.getenv("GEMINI_API_KEY")}'
-                    }
-                    
-                    myfile = client.files.upload(file=temp_file_path)
+                myfile = client.files.upload(file=temp_file_path)
 
                     response = client.models.generate_content(
                         model="gemini-2.5-flash", contents=["Transcribe this audio file", myfile]

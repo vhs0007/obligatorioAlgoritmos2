@@ -12,6 +12,7 @@ from Util.product_util import lista_productos
 from Util.estado import clear_cart, get_cart, get_estado, reset_estado, get_waiting_for, set_waiting_for, clear_waiting_for
 from Util.repartidor_util import handle_interactive
 from Util.calificacion_util import manejar_calificacion
+from Util.procesar_texto_gemini import procesar_texto_gemini
 
 
 class Chat:
@@ -41,6 +42,7 @@ class Chat:
             "flujo_carrito": self.flujo_carrito,
             "flujo_confirmacion": self.flujo_confirmacion,
         }
+        
     
     def _register_commands(self):
         self.function_graph = {
@@ -139,6 +141,7 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, res["body"])
 
     def handle_text(self, numero, texto):
+
         texto_strip = texto.strip()
         texto_lower = texto_strip.lower()
         repartidor_service = RepartidorService()
@@ -173,7 +176,28 @@ class Chat:
         flujo_actual = self.get_waiting_function(numero)
         if flujo_actual:
             return flujo_actual(numero, texto_lower)
-        return self.flujo_inicio(numero, texto_lower)
+
+        try:
+            salida_gemini = procesar_texto_gemini(
+                texto_strip,
+                chat=self,
+                numero=numero
+            )
+
+            if salida_gemini and isinstance(salida_gemini, dict):
+                accion = salida_gemini.get("accion")
+                if accion and (accion in self.function_map or accion in self.function_graph):
+                    if accion in self.function_map:
+                        return self.function_map[accion](numero, texto_lower)
+                    elif accion in self.function_graph:
+                        return self.function_graph[accion]['function'](numero, texto_lower)
+                mensaje_gemini = salida_gemini.get("mensaje")
+                if mensaje_gemini:
+                    return enviar_mensaje_whatsapp(numero, mensaje_gemini)
+            return self.flujo_inicio(numero, texto_lower)
+        except Exception as e:
+            print(f"Error en procesar_texto_gemini: {type(e).__name__} -> {e}")
+            return self.flujo_inicio(numero, texto_lower)
 
     def _registrar_y_enviar_mensaje(self, numero, mensaje):
         if self.id_chat:
@@ -182,29 +206,13 @@ class Chat:
 
 
     def flujo_inicio(self, numero, mensaje):
-        if "menu" in mensaje or "carta" in mensaje or "menú" in mensaje:
-            self.set_waiting_for(numero, "flujo_categorias")
-            estado = get_estado(numero)
-            estado["state"] = "viendo_categorias"
-            estado["cat_page"] = 1  
-            mensaje_menu = menu_categorias(numero, 1)
-            self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
-            return enviar_mensaje_whatsapp(numero, mensaje_menu)
-
-        if "carrito" in mensaje:
-            self.set_waiting_for(numero, "flujo_carrito")
-            res = self.pedido_service.mostrar_carrito_pedidos(numero)
-            self.chat_service.registrar_mensaje(self.id_chat, res["body"], es_cliente=False)
-            return enviar_mensaje_whatsapp(numero, res["body"])
-
-        if mensaje == "hola" or mensaje == "hi" or mensaje == "buenas" or mensaje == "buenos dias" or mensaje == "buenas tardes" or mensaje == "buenas noches":
-            respuesta = "👋 ¡Hola! Bienvenido a GordoEats 🍔\n\nEscribí *menu* para ver nuestros productos o *carrito* para ver tu pedido."
-            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
-            return enviar_mensaje_whatsapp(numero, respuesta)
-
-        respuesta = "👋 Escribí *menu* para ver productos o *carrito* para ver tu pedido."
-        self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
-        return enviar_mensaje_whatsapp(numero, respuesta)
+        self.set_waiting_for(numero, "flujo_categorias")
+        estado = get_estado(numero)
+        estado["state"] = "viendo_categorias"
+        estado["cat_page"] = 1  
+        mensaje_menu = menu_categorias(numero, 1)
+        self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+        return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
     def flujo_categorias(self, numero, mensaje):
         estado = get_estado(numero)
@@ -233,16 +241,6 @@ class Chat:
             estado["state"] = "viendo_productos"
             estado["page"] = 1
             return mostrar_productos(numero, mensaje)
-
-        if mensaje in ("cancelar", "salir"):
-            self.clear_state(numero)
-            respuesta = "❌ Cancelado. Escribí *menu* para empezar de nuevo."
-            self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
-            return enviar_mensaje_whatsapp(numero, respuesta)
-
-        respuesta = "📋 Elegí una categoría del menú."
-        self.chat_service.registrar_mensaje(self.id_chat, respuesta, es_cliente=False)
-        return enviar_mensaje_whatsapp(numero, respuesta)
 
     def flujo_productos(self, numero, mensaje):
         estado = get_estado(numero)
@@ -282,16 +280,6 @@ class Chat:
             self.chat_service.registrar_mensaje(self.id_chat, "productos", es_cliente=False)
             return enviar_mensaje_whatsapp(numero, payload)
         
-        if "carrito" in mensaje:
-            self.set_waiting_for(numero, "flujo_carrito")
-            res = self.pedido_service.mostrar_carrito_pedidos(numero)
-            return enviar_mensaje_whatsapp(numero, res["body"])
-
-        if "menu" in mensaje or "carta" in mensaje or "menú" in mensaje:
-            self.set_waiting_for(numero, "flujo_categorias")
-            estado["state"] = "viendo_categorias"
-            return enviar_mensaje_whatsapp(numero, menu_categorias(numero, estado.get("cat_page", 1)))
-
         if mensaje.startswith("add_"):
             prod_id = mensaje.replace("add_", "")
             estado_global = get_estado(numero)
