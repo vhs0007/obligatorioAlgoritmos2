@@ -52,7 +52,7 @@ def get_type(message):
                     cache_transcription(id_audio, contenido)
                     print(f"✅ Transcripción guardada en cache para audio {id_audio}")
         except Exception as error:
-            print(f"⚠️ Error al procesar audio: {error}")
+            print(f"⚠️ Error al procesar audio: {type(error).__name__} → {error}")
             if "429" in str(error) or "Too Many Requests" in str(error):
                 contenido = "⚠️ Se excedió el límite de solicitudes. Por favor, espera unos momentos y envía un mensaje de texto en su lugar."
             else:
