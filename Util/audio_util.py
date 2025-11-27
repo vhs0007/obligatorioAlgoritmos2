@@ -11,7 +11,7 @@ if not HF_API_KEY:
 
 client = InferenceClient(api_key=HF_API_KEY)
 
-MODEL_NAME = "openai/whisper-small"
+MODEL_NAME = "openai/whisper-medium"
 
 
 def convertir_audio_a_wav(binary_audio: bytes) -> bytes:
