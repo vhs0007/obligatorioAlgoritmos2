@@ -287,6 +287,13 @@ class Chat:
             estado["state"] = "viendo_productos"
             estado["page"] = 1
             return mostrar_productos(numero, mensaje)
+        
+        self.set_waiting_for(numero, "flujo_categorias")
+        estado["state"] = "viendo_categorias"
+        estado["cat_page"] = pagina_actual
+        mensaje_menu = menu_categorias(numero, pagina_actual)
+        self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
+        return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
     def flujo_productos(self, numero, mensaje):
         estado = get_estado(numero)
