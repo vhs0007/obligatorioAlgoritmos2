@@ -32,19 +32,13 @@ estados_posibles = {
 }
 
 def buscar_producto(nombre: str) -> dict:
-    """
-    Busca un producto en la base de datos por nombre (búsqueda parcial, case insensitive).
-    Retorna el primer producto encontrado o None si no hay coincidencias.
-    """
     db = get_db_session()
     try:
-        # Buscar productos que contengan el nombre (case insensitive)
         productos = db.query(Producto).filter(
             Producto.nombre.ilike(f"%{nombre}%")
         ).all()
         
         if productos:
-            # Retornar el primer producto encontrado
             producto = productos[0]
             return {
                 "producto_id": producto.idproducto,
@@ -71,7 +65,6 @@ def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
     waiting_for = estado.get("waiting_for")
     estado_actual = estado.get("state", "inicio")
 
-    # Determinar opciones disponibles según el estado
     opciones_disponibles = []
     if estado_actual == "inicio" or not estado_actual:
         opciones_disponibles = [
@@ -120,7 +113,6 @@ def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
 
     opciones_texto = "\n".join(opciones_disponibles)
 
-    # Construir información sobre waiting_for
     info_waiting_for = ""
     if waiting_for:
         info_waiting_for = f"""
@@ -257,34 +249,41 @@ Devuelve SOLO un JSON con este formato:
 
 NOTA: Los campos "producto_id" y "cantidad_detectada" solo deben incluirse cuando detectes un producto y cantidad en el mensaje del usuario."""
     
-    # Configurar tools para Gemini
-    tools = [types.Tool(function_declarations=[types.FunctionDeclaration(
-        name=tool_schema["name"],
-        description=tool_schema["description"],
-        parameters=types.Schema(
-            type_=types.Type.OBJECT,
-            properties={
-                "nombre": types.Schema(
-                    type_=types.Type.STRING,
-                    description=tool_schema["parameters"]["properties"]["nombre"]["description"]
-                )
-            },
-            required=tool_schema["parameters"]["required"]
+    try:
+        function_declaration = types.FunctionDeclaration(
+            name=tool_schema["name"],
+            description=tool_schema["description"],
+            parameters={
+                "type": "object",
+                "properties": {
+                    "nombre": {
+                        "type": "string",
+                        "description": tool_schema["parameters"]["properties"]["nombre"]["description"]
+                    }
+                },
+                "required": tool_schema["parameters"]["required"]
+            }
         )
-    )])]
+        
+        tools = [types.Tool(function_declarations=[function_declaration])]
+    except Exception as e:
+        print(f"⚠️ Error al configurar tools, continuando sin tool calling: {e}")
+        tools = None
     
     try:
-        # Primera llamada a Gemini con tools
+        # Primera llamada a Gemini con tools (si están disponibles)
+        config_params = {
+            "thinking_config": types.ThinkingConfig(thinking_budget=0)
+        }
+        if tools:
+            config_params["tools"] = tools
+        
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[prompt, "Devolveme sólo un JSON en la respuesta, sin explicaciones."],
-            config=types.GenerateContentConfig(
-                tools=tools,
-                thinking_config=types.ThinkingConfig(thinking_budget=0)
-            ),
+            config=types.GenerateContentConfig(**config_params),
         )
         
-        # Verificar si Gemini quiere ejecutar una función
         function_results = []
         
         if hasattr(response, 'candidates') and response.candidates:
@@ -292,18 +291,15 @@ NOTA: Los campos "producto_id" y "cantidad_detectada" solo deben incluirse cuand
             if hasattr(candidate, 'content') and candidate.content:
                 parts = candidate.content.parts if hasattr(candidate.content, 'parts') else []
                 
-                # Buscar tool calls en la respuesta
                 tool_calls = []
                 for part in parts:
                     if hasattr(part, 'function_call') and part.function_call:
                         tool_calls.append(part)
                         tool_calls_found = True
                 
-                # Si hay tool calls, ejecutarlos y reenviar a Gemini
                 if tool_calls:
                     for tool_call in tool_calls:
                         func_name = tool_call.function_call.name
-                        # Los args pueden venir como string JSON o como dict
                         if hasattr(tool_call.function_call, 'args'):
                             if isinstance(tool_call.function_call.args, str):
                                 args = json.loads(tool_call.function_call.args)
@@ -322,7 +318,6 @@ NOTA: Los campos "producto_id" y "cantidad_detectada" solo deben incluirse cuand
                                 )
                             ))
                     
-                    # Reenviar resultado a Gemini para que genere la respuesta final
                     contents_with_result = [
                         prompt,
                         "Devolveme sólo un JSON en la respuesta, sin explicaciones.",
@@ -330,16 +325,18 @@ NOTA: Los campos "producto_id" y "cantidad_detectada" solo deben incluirse cuand
                         *function_results
                     ]
                     
+                    config_params_retry = {
+                        "thinking_config": types.ThinkingConfig(thinking_budget=0)
+                    }
+                    if tools:
+                        config_params_retry["tools"] = tools
+                    
                     response = client.models.generate_content(
                         model="gemini-2.5-flash",
                         contents=contents_with_result,
-                        config=types.GenerateContentConfig(
-                            tools=tools,
-                            thinking_config=types.ThinkingConfig(thinking_budget=0)
-                        ),
+                        config=types.GenerateContentConfig(**config_params_retry),
                     )
         
-        # Obtener el texto de la respuesta
         response_text = response.text if hasattr(response, 'text') and response.text else ""
         
         if not response_text:
