@@ -173,22 +173,17 @@ class Chat:
         if not self.id_chat:
             self.id_chat = f"chat_{numero}"
 
-        # Manejar comandos técnicos interactivos directamente (vienen de botones de WhatsApp)
-        # Estos NO deben pasar por Gemini porque son comandos técnicos del sistema
         if texto_strip.startswith(("cat_", "prod_", "add_")):
             if texto_strip.startswith("cat_"):
                 return self.flujo_categorias(numero, texto_lower)
             elif texto_strip.startswith("prod_") or texto_strip.startswith("add_"):
                 return self.flujo_productos(numero, texto_lower)
 
-        # Manejar comando crítico de cancelar antes de Gemini
         if texto_lower in ("cancelar", "salir", "cancel"):
             self.clear_state(numero)
             clear_cart(numero)
             return enviar_mensaje_whatsapp(numero, "❌ Pedido cancelado. Escribí *menu* para comenzar de nuevo.")
 
-        # TODOS los demás mensajes de texto pasan por Gemini para orquestación
-        # Gemini recibirá el waiting_for como contexto y decidirá qué hacer
         try:
             salida_gemini = procesar_texto_gemini(
                 texto_strip,
@@ -204,10 +199,8 @@ class Chat:
                 producto_id = salida_gemini.get("producto_id")
                 cantidad_detectada = salida_gemini.get("cantidad_detectada")
                 
-                # Manejar caso especial: detección de producto y cantidad (flujo directo al carrito)
                 if accion == "flujo_carrito" and producto_id and cantidad_detectada:
                     try:
-                        # Agregar producto al carrito
                         ok, err = self.pedido_service.add_to_cart_pedidos(
                             numero, 
                             producto_id, 
@@ -215,26 +208,22 @@ class Chat:
                         )
                         
                         if not ok:
-                            # Error al agregar producto
                             mensaje_error = f"❌ Error al agregar producto: {err}"
                             if self.id_chat:
                                 self.chat_service.registrar_mensaje(self.id_chat, mensaje_error, es_cliente=False)
                             return enviar_mensaje_whatsapp(numero, mensaje_error)
                         
-                        # Actualizar estado
                         estado = get_estado(numero)
                         estado["state"] = "en_carrito"
                         self.set_waiting_for(numero, "flujo_carrito")
-                        
-                        # Mostrar carrito
+                            
                         res = self.pedido_service.mostrar_carrito_pedidos(numero)
-                        if res["empty"]:
-                            mensaje_carrito = res["body"]
-                        else:
-                            mensaje_carrito = res["body"]
+                        mensaje_carrito = res["body"]
                         
-                        # Si hay mensaje de Gemini, usarlo; si no, usar el del carrito
-                        mensaje_final = mensaje_gemini if mensaje_gemini else mensaje_carrito
+                        if mensaje_gemini:
+                            mensaje_final = f"{mensaje_gemini}\n\n{mensaje_carrito}"
+                        else:
+                            mensaje_final = mensaje_carrito
                         
                         if self.id_chat:
                             self.chat_service.registrar_mensaje(self.id_chat, mensaje_final, es_cliente=False)
@@ -242,41 +231,31 @@ class Chat:
                         return enviar_mensaje_whatsapp(numero, mensaje_final)
                     except Exception as e:
                         print(f"⚠️ Error al agregar producto al carrito: {e}")
-                        # Fallback: mostrar menú
                         return self.flujo_inicio(numero, texto_lower)
                 
-                # Si hay un mensaje de Gemini, priorizarlo (para saludos y mensajes fuera de contexto)
                 if mensaje_gemini:
-                    # Si hay un mensaje, actualizar waiting_for si es necesario pero no ejecutar acción
                     if actualizar_waiting_for:
                         context_data = salida_gemini.get("context_data")
                         self.set_waiting_for(numero, actualizar_waiting_for, context_data)
                     elif not respetar_waiting_for:
-                        # Si no se respeta waiting_for, limpiarlo
                         clear_waiting_for(numero)
                     
-                    # Registrar y enviar el mensaje de Gemini
                     if self.id_chat:
                         self.chat_service.registrar_mensaje(self.id_chat, mensaje_gemini, es_cliente=False)
                     return enviar_mensaje_whatsapp(numero, mensaje_gemini)
                 
-                # Si no hay mensaje de Gemini, proceder con el flujo normal
-                # Si Gemini indica que debe respetar el waiting_for actual
                 if respetar_waiting_for:
                     estado = get_estado(numero)
                     waiting_for_actual = estado.get("waiting_for")
                     if waiting_for_actual and waiting_for_actual in self.function_map:
                         return self.function_map[waiting_for_actual](numero, texto_lower)
                 
-                # Si Gemini proporciona un nuevo waiting_for, actualizarlo
                 if actualizar_waiting_for:
                     context_data = salida_gemini.get("context_data")
                     self.set_waiting_for(numero, actualizar_waiting_for, context_data)
                 elif not respetar_waiting_for and accion:
-                    # Si cambió de flujo, limpiar waiting_for
                     clear_waiting_for(numero)
                 
-                # Ejecutar la acción determinada por Gemini
                 if accion and (accion in self.function_map or accion in self.function_graph):
                     if accion in self.function_map:
                         return self.function_map[accion](numero, texto_lower)
@@ -363,7 +342,6 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, payload)
         
         if mensaje == "prod_filter":
-            # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
             estado["state"] = "viendo_categorias"
             clear_waiting_for(numero)
             mensaje_menu = menu_categorias(numero, estado.get("cat_page", 1))
@@ -408,10 +386,8 @@ class Chat:
         if not ok:
             return enviar_mensaje_whatsapp(numero, f"❌ Error al agregar: {err}")
 
-        # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
         estado = get_estado(numero)
         estado["state"] = "en_carrito"
-        # Limpiar context_data ya que se procesó la cantidad
         estado["context_data"] = {}
         clear_waiting_for(numero)
         
@@ -422,7 +398,6 @@ class Chat:
 
     def flujo_carrito(self, numero, mensaje):
         if mensaje in ("2", "seguir", "seguir pidiendo"):
-            # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
             estado = get_estado(numero)
             estado["state"] = "viendo_categorias"
             estado["cat_page"] = estado.get("cat_page", 1)
@@ -432,7 +407,6 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, mensaje_menu)
 
         if mensaje in ("3", "confirmar"):
-            # Actualizar estado pero NO establecer waiting_for - Gemini decidirá el siguiente paso
             estado = get_estado(numero)
             estado["state"] = "confirmando"
             clear_waiting_for(numero)
@@ -472,7 +446,6 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, "📍 Enviá tu ubicación para calcular el envío.")
 
     def handle_location(self, numero, contenido):
-        # Verificar si es repartidor al inicio
         repartidor_service = RepartidorService()
         repartidor = repartidor_service.obtener_repartidor_por_telefono(numero)
         if repartidor:
