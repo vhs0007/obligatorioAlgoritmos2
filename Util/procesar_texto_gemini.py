@@ -132,7 +132,6 @@ Ejemplos:
 - Si waiting_for es "flujo_carrito" y el usuario escribe "menu" → respetar_waiting_for: false, accion: "flujo_categorias"
 """
 
-    # Definir tool schema para buscar_producto
     tool_schema = {
         "name": "buscar_producto",
         "description": "Busca un producto en la base de datos por nombre. Úsala cuando el usuario mencione un producto específico que quiere agregar al carrito.",
@@ -150,104 +149,64 @@ Ejemplos:
 
     prompt = f"""Eres un orquestador de flujo de conversación para un sistema de entrega de productos.
 
-CONTEXTO ACTUAL:
-- Estado del usuario: {estado_actual}
-- Función esperada (waiting_for): {waiting_for if waiting_for else "ninguna"}
-- Mensaje del usuario: "{texto}"
+CONTEXTO: Estado={estado_actual}, Waiting_for={waiting_for if waiting_for else "ninguna"}, Mensaje="{texto}"
 {info_waiting_for}
 
-OPCIONES DISPONIBLES EN ESTE ESTADO:
-{opciones_texto}
+OPCIONES DISPONIBLES: {opciones_texto}
+ACCIONES: {acciones_posibles}
+PALABRAS CLAVE: "menu"/"menú"→flujo_categorias, "carrito"→flujo_carrito, "ayuda"→flujo_inicio, "confirmar"→flujo_confirmacion
+COMANDOS CARRITO: "1"/"quitar"→quitar, "2"/"seguir"→continuar, "3"/"confirmar"→confirmar
+NOTA: Comandos técnicos "cat_*", "prod_*", "add_*" son internos y NO deben procesarse.
 
-ACCIONES DEL SISTEMA DISPONIBLES: {acciones_posibles}
+DETECCIÓN DE PRODUCTOS, CANTIDADES Y OBSERVACIONES:
+Si el mensaje menciona producto y cantidad (ej: "Quiero 3 Coca Cola", "Dame 2 hamburguesas, 1 con aceitunas", "Necesito 1 pizza sin cebolla"):
+1. Usa buscar_producto para encontrar el producto
+2. Extrae la cantidad (número)
+3. Extrae observaciones si existen (ej: "con aceitunas", "sin cebolla", "1 de ellas con aceitunas")
+4. Si encuentras producto_id y cantidad:
+   - "accion": "flujo_carrito", "estado": "en_carrito"
+   - "producto_id": [id encontrado], "cantidad_detectada": [cantidad]
+   - "observacion": [observación extraída o "" si no hay]
+   - "respetar_waiting_for": true, "actualizar_waiting_for": "flujo_carrito"
+   - "mensaje": [confirmación amigable, ej: "Genial 😄 Agregué 2 hamburguesas (1 con aceitunas). ¿Confirmamos?"]
+5. Si no encuentras producto: "accion": "flujo_inicio", "mensaje": [sugerir usar menú], "respetar_waiting_for": false
+6. Si no detectas cantidad: "accion": "flujo_cantidad", "mensaje": [preguntar cantidad], "respetar_waiting_for": false
 
-PALABRAS CLAVE Y SUS ACCIONES:
-- "menu" o "menú" → flujo_categorias (mostrar categorías)
-- "carrito" → flujo_carrito (ver carrito)
-- "ayuda" → Mostrar ayuda (comando especial)
-- "productos" → flujo_productos (ver productos)
-- "confirmar" → flujo_confirmacion (confirmar pedido)
+MANEJO DE SALUDOS:
+CASO A - Sin waiting_for: Si es saludo (hola, buenos días, etc.) → "accion": "flujo_inicio", "estado": "inicio", "respetar_waiting_for": false, "mensaje": [saludo amigable + sugerir *menu*]
+CASO B - Con waiting_for: Si es saludo que NO responde → "accion": [acción del waiting_for actual], "respetar_waiting_for": true, "mensaje": [recordar qué se espera según waiting_for]
 
-COMANDOS ESPECIALES DEL CARRITO (cuando estado es "en_carrito"):
-- "1", "quitar", "eliminar" → Quitar producto (se maneja en flujo_carrito)
-- "2", "seguir", "seguir pidiendo" → Continuar comprando (se maneja en flujo_carrito)
-- "3", "confirmar" → Confirmar pedido (se maneja en flujo_carrito)
+ORQUESTACIÓN:
+1. Detecta saludo/contexto (casos A/B)
+2. Evalúa si mensaje responde a waiting_for o cambia de flujo
+3. "menu"/"menú" → flujo_categorias (respetar_waiting_for: false)
+4. "carrito" → flujo_carrito (respetar_waiting_for: false si hay otro waiting_for)
+5. "ayuda" → flujo_inicio (respetar_waiting_for: false)
+6. waiting_for="flujo_cantidad" + número → respetar_waiting_for: true, accion: "flujo_cantidad"
+7. waiting_for="flujo_carrito" + "1"/"2"/"3"/"quitar"/"seguir"/"confirmar" → respetar_waiting_for: true, accion: "flujo_carrito"
+8. waiting_for="flujo_confirmacion" + coordenadas → respetar_waiting_for: true, accion: "flujo_confirmacion"
+9. Sin contexto claro → "flujo_inicio" (respetar_waiting_for: false)
 
-NOTA: Los comandos técnicos como "cat_*", "prod_*", "add_*" son comandos internos de botones interactivos y NO deben procesarse aquí.
+REGLAS:
+- Siempre devuelve JSON con "accion", "estado", "respetar_waiting_for"
+- "estado" debe ser uno de: {list(estados_posibles.keys())}
+- Si no entiendes → "flujo_inicio"
+- Si cambias flujo (respetar_waiting_for: false) → opcional "actualizar_waiting_for"
+- Si generas "mensaje" → se envía directamente, NO ejecuta acción
 
-DETECCIÓN DE PRODUCTOS Y CANTIDADES EN LENGUAJE NATURAL:
-Si el usuario escribe un mensaje que menciona un producto y una cantidad (ej: "Quiero 3 Coca Cola zero 1.5", "Dame 2 hamburguesas", "Necesito 1 pizza muzzarella"):
-1. DEBES usar la función buscar_producto para encontrar el producto en la base de datos
-2. Extrae la cantidad mencionada (número)
-3. Una vez que tengas el producto_id y la cantidad:
-   - Establece "accion": "flujo_carrito"
-   - Establece "estado": "en_carrito"
-   - Establece "producto_id": [id del producto encontrado]
-   - Establece "cantidad_detectada": [cantidad extraída]
-   - Establece "respetar_waiting_for": true
-   - Establece "actualizar_waiting_for": "flujo_carrito"
-   - Establece "mensaje": [mensaje amigable confirmando lo agregado, ej: "Genial 😄 Agregué 3 Coca Cola Zero. ¿Confirmamos?"]
-
-Si el producto no se encuentra:
-- Establece "accion": "flujo_inicio"
-- Establece "mensaje": [mensaje amigable indicando que no se encontró el producto y sugiriendo usar el menú]
-- Establece "respetar_waiting_for": false
-
-Si no se puede detectar la cantidad:
-- Establece "accion": "flujo_cantidad"
-- Establece "mensaje": [pregunta al usuario la cantidad]
-- Establece "respetar_waiting_for": false
-
-MANEJO DE SALUDOS Y MENSAJES FUERA DE CONTEXTO:
-
-CASO A - Saludo sin estado de flujo asignado (estado_actual es "inicio" o no hay waiting_for):
-Si el mensaje es un saludo convencional (hola, buenos días, buenas tardes, buenas noches, hi, hello, etc.) o un mensaje que no corresponde al flujo esperado:
-- Establece "accion": "flujo_inicio"
-- Establece "estado": "inicio"
-- Establece "respetar_waiting_for": false
-- Establece "mensaje": [GENERA UNA RESPUESTA AMIGABLE AL SALUDO Y PREGUNTA QUÉ NECESITA EL USUARIO]
-  Ejemplo de mensaje: "¡Hola! 👋 ¿En qué puedo ayudarte hoy? Podés escribir *menu* para ver nuestras categorías de productos."
-
-CASO B - Saludo mientras se espera respuesta específica (hay waiting_for activo):
-Si el mensaje es un saludo o mensaje que NO responde a lo esperado en "{waiting_for if waiting_for else 'ninguna'}":
-- Establece "accion": [la acción correspondiente al waiting_for actual]
-- Establece "respetar_waiting_for": true (para mantener el flujo)
-- Establece "mensaje": [GENERA UNA RESPUESTA AMIGABLE QUE RECUERDE AL USUARIO QUÉ SE ESPERA]
-  Ejemplos según waiting_for:
-  - Si waiting_for es "flujo_carrito": "¡Hola! 😊 Estoy esperando que elijas una opción del carrito. Podés escribir '1' para quitar un producto, '2' para seguir comprando, o '3' para confirmar tu pedido."
-  - Si waiting_for es "flujo_cantidad": "¡Hola! 😊 Necesito que me indiques la cantidad que deseas. Escribí un número, por ejemplo: '2' o '2 sin cebolla'."
-  - Si waiting_for es "flujo_confirmacion": "¡Hola! 😊 Para confirmar tu pedido necesito tu ubicación. Enviá las coordenadas en formato: latitud, longitud (ej: -31.38, -57.96)"
-
-INSTRUCCIONES DE ORQUESTACIÓN:
-1. PRIMERO: Detecta si el mensaje es un saludo o mensaje fuera de contexto usando los casos A y B arriba
-2. Si hay waiting_for activo, EVALÚA primero si el mensaje responde a lo esperado o quiere cambiar de flujo
-3. Si el mensaje es "menu", "menú" o similar → devuelve "flujo_categorias" (respetar_waiting_for: false)
-4. Si el mensaje es "carrito" → devuelve "flujo_carrito" (respetar_waiting_for: false si hay otro waiting_for)
-5. Si el mensaje es "ayuda" → devuelve "flujo_inicio" (respetar_waiting_for: false)
-6. Si waiting_for es "flujo_cantidad" y el mensaje empieza con un número → respetar_waiting_for: true, accion: "flujo_cantidad"
-7. Si waiting_for es "flujo_carrito" y el mensaje es "1", "2", "3", "quitar", "seguir", "confirmar" → respetar_waiting_for: true, accion: "flujo_carrito"
-8. Si waiting_for es "flujo_confirmacion" y el mensaje parece una ubicación (dos números separados por coma) → respetar_waiting_for: true, accion: "flujo_confirmacion"
-9. Si no hay contexto claro o el mensaje no coincide con ninguna opción → devuelve "flujo_inicio" (respetar_waiting_for: false)
-
-IMPORTANTE: 
-- Siempre devuelve un JSON válido con "accion", "estado" y "respetar_waiting_for"
-- El "estado" debe ser uno de: {list(estados_posibles.keys())}
-- Si el usuario escribe algo que no entiendes, redirige a "flujo_inicio"
-- Si cambias de flujo (respetar_waiting_for: false), puedes opcionalmente incluir "actualizar_waiting_for" con el nuevo flujo esperado
-- Si generas un "mensaje" para el usuario, este será enviado directamente y NO se ejecutará la acción del flujo
-
-Devuelve SOLO un JSON con este formato:
+Formato JSON:
 {{
     "accion": "flujo_inicio",
     "estado": "inicio",
     "respetar_waiting_for": false,
-    "mensaje": "Texto opcional que se enviará al usuario",
+    "mensaje": "Texto opcional",
     "actualizar_waiting_for": "flujo_categorias",
     "producto_id": 123,
-    "cantidad_detectada": 3
+    "cantidad_detectada": 3,
+    "observacion": "con aceitunas"
 }}
 
-NOTA: Los campos "producto_id" y "cantidad_detectada" solo deben incluirse cuando detectes un producto y cantidad en el mensaje del usuario."""
+NOTA: "producto_id", "cantidad_detectada" y "observacion" solo cuando detectes producto en el mensaje."""
     
     try:
         function_declaration = types.FunctionDeclaration(

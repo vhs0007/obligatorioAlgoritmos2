@@ -68,9 +68,9 @@ class PedidosService:
         cola = self.obtener_cola_por_zona(zona)
         print(f"🔍 debe_crear_tanda({zona}): cola tiene {len(cola)} pedidos")
         
-        if len(cola) >= 3:
-            print(f"✅ debe_crear_tanda({zona}): True (3 o más pedidos)")
-            return True, "3_pedidos"
+        if len(cola) >= 7:
+            print(f"✅ debe_crear_tanda({zona}): True (7 o más pedidos)")
+            return True, "7_pedidos"
         
         if len(cola) > 0:
             primer_pedido_id = cola[0]
@@ -78,9 +78,9 @@ class PedidosService:
             if primer_pedido and primer_pedido.fecha_confirmacion:
                 tiempo_espera = datetime.now() - primer_pedido.fecha_confirmacion
                 print(f"🔍 debe_crear_tanda({zona}): tiempo_espera = {tiempo_espera}, minutos = {tiempo_espera.total_seconds() / 60}")
-                if tiempo_espera >= timedelta(minutes=2):
-                    print(f"✅ debe_crear_tanda({zona}): True (2 minutos de espera)")
-                    return True, "2_minutos"
+                if tiempo_espera >= timedelta(minutes=45):
+                    print(f"✅ debe_crear_tanda({zona}): True (45 minutos de espera)")
+                    return True, "45_minutos"
             else:
                 print(f"ℹ️ debe_crear_tanda({zona}): pedido sin fecha_confirmacion o no encontrado")
         
@@ -93,7 +93,7 @@ class PedidosService:
         if len(cola) == 0:
             return None
         
-        cantidad = min(3, len(cola))
+        cantidad = min(7, len(cola))
         pedidos_ids = []
         pedidos_tanda = []
         
@@ -199,7 +199,7 @@ class PedidosService:
             longitud=longitud,
             estado="pendiente",
             fecha_confirmacion=datetime.now(),
-            codigo_verificacion=''.join(random.choices(string.digits, k=6))
+            codigo_verificacion=int(''.join(random.choices(string.digits, k=6)))
         )
         self.db.add(pedido)
         self.db.commit()

@@ -518,7 +518,7 @@ def calcular_ruta_tsp(coordenadas: List[Tuple[float, float]]) -> Tuple[List[int]
                     continue
         
         if siguiente_idx is None:
-            print(f"⚠️ No se puede alcanzar punto {len(visitados)}")
+            print(f"No se puede alcanzar punto {len(visitados)}")
             break
         
         # Calcular ruta detallada entre nodo actual y siguiente
@@ -544,18 +544,6 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
                                   nombre_archivo: str = "ruta_delivery.png",
                                   info_tanda: dict = None,
                                   ubicacion_origen: Optional[Tuple[float, float]] = None) -> str:
-    """
-    Genera una imagen estática mostrando la ruta completa de delivery.
-    
-    Args:
-        coordenadas: Lista de (lat, lon) - índice 0 es restaurante
-        orden_visita: Orden óptimo de visita (índices)
-        nombre_archivo: Nombre del archivo de salida
-        info_tanda: Dict con info adicional (id_tanda, num_pedidos, etc.)
-    
-    Returns:
-        Ruta completa al archivo generado
-    """
     global G
     cargar_o_crear_grafo()
     
@@ -572,7 +560,6 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
     
     lat_destino, lon_destino = coordenadas[-1] if len(coordenadas) > 1 else coordenadas[0]
     
-    # Inicializar estilos del grafo (resetear todo)
     for node in G.nodes:
         G.nodes[node]["size"] = 0
     for edge in G.edges:
@@ -580,52 +567,42 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
         G.edges[edge]["alpha"] = 0.3
         G.edges[edge]["linewidth"] = 0.5
     
-    # Convertir coordenadas a nodos
     nodo_origen = encontrar_nodo_cercano(lat_origen, lon_origen)
     nodo_destino = encontrar_nodo_cercano(lat_destino, lon_destino)
+    G.nodes[nodo_origen]["size"] = 100
+    G.nodes[nodo_destino]["size"] = 80
     
-    # Marcar puntos importantes
-    G.nodes[nodo_origen]["size"] = 100  # Origen más grande
-    G.nodes[nodo_destino]["size"] = 80  # Destino
-    
-    # Dibujar la ruta simple desde origen hasta destino
     distancia_total = 0
     tiempo_total_min = 0
     velocidades = []
     
     try:
-        # Obtener el camino entre origen y destino
         ruta_segmento = nx.shortest_path(G, nodo_origen, nodo_destino, weight='weight')
         
-        # Colorear las aristas de la ruta
         for j in range(len(ruta_segmento) - 1):
             edge = (ruta_segmento[j], ruta_segmento[j+1], 0)
-            G.edges[edge]["color"] = "#0000ff"  # Azul intenso para la ruta
+            G.edges[edge]["color"] = "#0000ff"
             G.edges[edge]["alpha"] = 1
-            G.edges[edge]["linewidth"] = 3
+            G.edges[edge]["linewidth"] = 2
             
-            # Calcular distancia y tiempo por segmento
             distancia_seg_m = G.edges[edge]["length"]
             velocidad_seg_kmh = G.edges[edge].get("maxspeed", 40)
             distancia_total += distancia_seg_m
             velocidades.append(velocidad_seg_kmh)
             
-            # Calcular tiempo por segmento
             distancia_seg_km = distancia_seg_m / 1000
             tiempo_seg_min = (distancia_seg_km / velocidad_seg_kmh) * 60
             tiempo_total_min += tiempo_seg_min
     except Exception as e:
-        print(f"⚠️ No se pudo dibujar ruta: {e}")
+        print(f"No se pudo dibujar ruta: {e}")
         distancia_total = 0
         tiempo_total_min = 0
         velocidades = []
     
-    # Calcular estadísticas
     distancia_km = distancia_total / 1000
     velocidad_promedio = sum(velocidades) / len(velocidades) if velocidades else 40
     tiempo_min = tiempo_total_min
     
-    # Crear título
     if info_tanda:
         titulo = f"Tanda #{info_tanda.get('id_tanda', '?')} - Próximo pedido\n"
         titulo += f"Distancia: {distancia_km:.2f}km | Tiempo estimado: {int(tiempo_min)}min | Vel. prom: {int(velocidad_promedio)}km/h"
@@ -664,23 +641,12 @@ def generar_imagen_ruta_delivery(coordenadas: List[Tuple[float, float]],
 
 
 def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int, ubicacion_origen: Optional[Tuple[float, float]] = None) -> Tuple[str, dict]:
-    """
-    Calcula ruta simple desde ubicacion_origen hasta el primer pedido de la tanda.
-    
-    Args:
-        pedidos_tanda: Lista con un solo pedido (dict con latitud, longitud, etc.)
-        id_tanda: ID de la tanda
-        ubicacion_origen: Tupla (lat, lon) del origen. Si es None, usa restaurante.
-    
-    Returns:
-        (ruta_imagen, info_dict)
-    """
     print(f"{'='*60}")
     print(f"CALCULANDO RUTA PARA TANDA #{id_tanda}")
     print(f"{'='*60}")
 
     if not pedidos_tanda or len(pedidos_tanda) == 0:
-        raise ValueError("❌ ERROR: No hay pedidos en la tanda")
+        raise ValueError("ERROR: No hay pedidos en la tanda")
 
     pedido = pedidos_tanda[0]
     lat_pedido = float(pedido.get('latitud', pedido.get('lat', 0)))
@@ -688,7 +654,7 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int, ubic
 
     if lat_pedido == 0 or lon_pedido == 0:
         raise ValueError(
-            f"❌ ERROR: Pedido {pedido.get('idpedido')} tiene coordenadas inválidas "
+            f"ERROR: Pedido {pedido.get('idpedido')} tiene coordenadas inválidas "
             f"({lat_pedido}, {lon_pedido}). No se puede calcular la ruta."
         )
 
@@ -697,7 +663,7 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int, ubic
         origen_texto = f"Ubicación actual ({lat_origen:.4f}, {lon_origen:.4f})"
     else:
         if RESTAURANTE_LAT == 0 or RESTAURANTE_LON == 0:
-            raise ValueError("❌ ERROR: Las coordenadas del restaurante no pueden ser 0,0.")
+            raise ValueError("ERROR: Las coordenadas del restaurante no pueden ser 0,0.")
         lat_origen, lon_origen = RESTAURANTE_LAT, RESTAURANTE_LON
         origen_texto = f"Restaurante ({RESTAURANTE_LAT:.4f}, {RESTAURANTE_LON:.4f})"
 
@@ -710,7 +676,7 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int, ubic
     )
 
     if not ruta_nodos:
-        raise ValueError("❌ ERROR: No se pudo calcular la ruta")
+        raise ValueError("ERROR: No se pudo calcular la ruta")
 
     coordenadas = [(lat_origen, lon_origen), (lat_pedido, lon_pedido)]
     orden_visita = [0, 1]
@@ -733,10 +699,10 @@ def calcular_y_generar_ruta_tanda(pedidos_tanda: List[dict], id_tanda: int, ubic
         'ruta_imagen': ruta_imagen
     }
 
-    print(f"✅ RUTA CALCULADA EXITOSAMENTE")
-    print(f"   📊 Distancia: {distancia_km:.2f} km")
-    print(f"   ⏱️ Tiempo estimado: {int(tiempo_min)} minutos")
-    print(f"   🖼️ Imagen: {ruta_imagen}")
+    print(f"RUTA CALCULADA EXITOSAMENTE")
+    print(f"   Distancia: {distancia_km:.2f} km")
+    print(f"   Tiempo estimado: {int(tiempo_min)} minutos")
+    print(f"   Imagen: {ruta_imagen}")
     print(f"{'='*60}")
 
     return ruta_imagen, info

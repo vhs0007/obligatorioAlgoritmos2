@@ -114,15 +114,7 @@ class Chat:
         print(f"{'='*60}\n")
 
     def cmd_menu(self, numero, texto):
-        if not self.id_chat:
-            self.id_chat = f"chat_{numero}"
-        
-        estado = get_estado(numero)
-        estado["state"] = "viendo_categorias"
-        
-        mensaje_menu = menu_categorias(numero)
-        self.chat_service.registrar_mensaje(self.id_chat, "menu", es_cliente=False)
-        return enviar_mensaje_whatsapp(numero, mensaje_menu)
+        return self.flujo_categorias(numero, texto)
 
     def funcion_ayuda(self, numero, texto):
         ayuda_texto = (
@@ -135,10 +127,7 @@ class Chat:
         return enviar_mensaje_whatsapp(numero, ayuda_texto)
 
     def cmd_carrito(self, numero, texto):
-        res = self.pedido_service.mostrar_carrito_pedidos(numero)
-        if res["empty"]:
-            return enviar_mensaje_whatsapp(numero, res["body"])
-        return enviar_mensaje_whatsapp(numero, res["body"])
+        return self.flujo_carrito(numero, texto)
 
     def handle_text(self, numero, texto):
 
@@ -198,13 +187,15 @@ class Chat:
                 mensaje_gemini = salida_gemini.get("mensaje")
                 producto_id = salida_gemini.get("producto_id")
                 cantidad_detectada = salida_gemini.get("cantidad_detectada")
+                observacion = salida_gemini.get("observacion", "")
                 
                 if accion == "flujo_carrito" and producto_id and cantidad_detectada:
                     try:
                         ok, err = self.pedido_service.add_to_cart_pedidos(
                             numero, 
                             producto_id, 
-                            cantidad_detectada
+                            cantidad_detectada,
+                            observacion
                         )
                         
                         if not ok:
@@ -242,6 +233,14 @@ class Chat:
                     
                     if self.id_chat:
                         self.chat_service.registrar_mensaje(self.id_chat, mensaje_gemini, es_cliente=False)
+                    
+                    if respetar_waiting_for:
+                        estado = get_estado(numero)
+                        waiting_for_actual = estado.get("waiting_for")
+                        if waiting_for_actual and waiting_for_actual in self.function_map:
+                            enviar_mensaje_whatsapp(numero, mensaje_gemini)
+                            return self.function_map[waiting_for_actual](numero, texto_lower)
+                    
                     return enviar_mensaje_whatsapp(numero, mensaje_gemini)
                 
                 if respetar_waiting_for:
@@ -423,9 +422,10 @@ class Chat:
             return enviar_mensaje_whatsapp(numero, "❌ Pedido cancelado. Escribí *menu* para comenzar de nuevo.")
 
         res = self.pedido_service.mostrar_carrito_pedidos(numero)
-        if res["empty"]:
-            return enviar_mensaje_whatsapp(numero, res["body"])
-        return enviar_mensaje_whatsapp(numero, "📋 Escribí 1 para quitar, 2 para seguir pidiendo o 3 para confirmar.")
+        estado = get_estado(numero)
+        estado["state"] = "en_carrito"
+        self.set_waiting_for(numero, "flujo_carrito")
+        return enviar_mensaje_whatsapp(numero, res["body"])
 
     def es_ubicacion(self, contenido: str) -> bool:
         try:
@@ -503,6 +503,11 @@ class Chat:
 
             self.conversation_data['id_pedido'] = getattr(pedido, 'idpedido', None)
 
+            from Util.coordenadas_gifs import calcular_ruta_simple, RESTAURANTE_LAT, RESTAURANTE_LON
+            _, distancia_km, tiempo_min = calcular_ruta_simple(
+                RESTAURANTE_LAT, RESTAURANTE_LON,
+                lat, lon
+            )
             estado = get_estado(numero)
             estado["state"] = "pedido_confirmado"
 
@@ -512,8 +517,10 @@ class Chat:
                 clear_cart(numero)
 
             msg = (
-                f"📍Tu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')} "
-                f"Y Código de verificación: {getattr(pedido, 'codigo_verificacion', 'N/A')}"
+                f"📍Tu pedido fue registrado con ID: {getattr(pedido, 'idpedido', 'N/A')}\n"
+                f"📏 Distancia: {distancia_km:.2f} km\n"
+                f"⏱️ Tiempo estimado de entrega: {int(tiempo_min)} minutos\n"
+                f"🔐 Código de verificación: {getattr(pedido, 'codigo_verificacion', 'N/A')}"
             )
 
             self.chat_service.registrar_mensaje(id_chat, msg, es_cliente=False)

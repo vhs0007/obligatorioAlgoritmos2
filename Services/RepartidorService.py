@@ -30,6 +30,24 @@ class RepartidorService:
     def __init__(self):
         pass
     
+    def _obtener_info_repartidor(self, id_repartidor):
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
+        repartidor_info = cur.fetchone()
+        cur.close()
+        conn.close()
+        return repartidor_info
+    
+    def _crear_pedido_data(self, pedido):
+        return {
+            'latitud': pedido.latitud,
+            'longitud': pedido.longitud,
+            'direccion': pedido.direccion,
+            'idpedido': pedido.idpedido,
+            'codigo_verificacion': pedido.codigo_verificacion
+        }
+    
     def obtener_repartidores_disponibles(self):
         conn = get_db_connection()
         cur = conn.cursor()
@@ -89,12 +107,10 @@ class RepartidorService:
             )
         
         conn.commit()
-        
-        cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
-        repartidor_info = cur.fetchone()
-        
         cur.close()
         conn.close()
+        
+        repartidor_info = self._obtener_info_repartidor(id_repartidor)
         
         RepartidorService.repartidores_ocupados[id_repartidor] = tanda["id"]
         
@@ -117,13 +133,7 @@ class RepartidorService:
                 
                 print(f"\n Generando ruta para {nombre_repartidor}...")
                 
-                pedido_data = [{
-                    'latitud': primer_pedido.latitud,
-                    'longitud': primer_pedido.longitud,
-                    'direccion': primer_pedido.direccion,
-                    'idpedido': primer_pedido.idpedido,
-                    'codigo_verificacion': primer_pedido.codigo_verificacion
-                }]
+                pedido_data = [self._crear_pedido_data(primer_pedido)]
                 ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedido_data, tanda["id"], ubicacion_origen=None)
                 
                 mensaje = f"Nueva Tanda Asignada #{tanda['id']}\n\n"
@@ -147,6 +157,16 @@ class RepartidorService:
                     ruta_imagen,
                     mensaje
                 )
+                
+                mensaje_cliente = (
+                    f"🚚 Tu pedido está en camino!\n\n"
+                    f"Pedido #{primer_pedido.idpedido}\n"
+                    f"{primer_pedido.direccion}\n"
+                    f"Llega en: {int(info_ruta['tiempo_min'])} minutos\n\n"
+                    f"Código de verificación: {primer_pedido.codigo_verificacion}"
+                )
+                enviar_mensaje_whatsapp(primer_pedido.id_chat, mensaje_cliente)
+                print(f"Cliente notificado: {primer_pedido.id_chat}")
                 
                 self.registrar_recorrido(id_repartidor, info_ruta['distancia_km'])
                 
@@ -309,20 +329,16 @@ class RepartidorService:
         return tanda_actual, pedidos_restantes
     
     def enviar_ruta_al_restaurante(self, id_repartidor, tanda_id, lat_actual, lon_actual):
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
-        repartidor_info = cur.fetchone()
-        cur.close()
-        conn.close()
+        repartidor_info = self._obtener_info_repartidor(id_repartidor)
         
         if not repartidor_info:
             return
         
         try:
+            from Util.coordenadas_gifs import RESTAURANTE_LAT, RESTAURANTE_LON
             restaurante_data = [{
-                'latitud': -31.3876594,
-                'longitud': -57.9628518,
+                'latitud': RESTAURANTE_LAT,
+                'longitud': RESTAURANTE_LON,
                 'direccion': 'Restaurante',
                 'idpedido': 0
             }]
@@ -372,21 +388,10 @@ class RepartidorService:
         enviar_mensaje_whatsapp(proximo_pedido.id_chat, mensaje_cliente)
         print(f"Cliente notificado: {proximo_pedido.id_chat}")
         
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT telefono, nombre, apellido FROM repartidor WHERE idrepartidor = %s", (id_repartidor,))
-        repartidor_info = cur.fetchone()
-        cur.close()
-        conn.close()
+        repartidor_info = self._obtener_info_repartidor(id_repartidor)
         
         if repartidor_info:
-            pedido_data = [{
-                'latitud': proximo_pedido.latitud,
-                'longitud': proximo_pedido.longitud,
-                'direccion': proximo_pedido.direccion,
-                'idpedido': proximo_pedido.idpedido,
-                'codigo_verificacion': proximo_pedido.codigo_verificacion
-            }]
+            pedido_data = [self._crear_pedido_data(proximo_pedido)]
             
             ubicacion_origen = (float(lat_actual), float(lon_actual))
             ruta_imagen, info_ruta = calcular_y_generar_ruta_tanda(pedido_data, tanda_id, ubicacion_origen=ubicacion_origen)
@@ -431,8 +436,8 @@ class RepartidorService:
         codigo_correcto = pedido_info['codigo_verificacion']
         tanda_id = pedido_info['id_tanda']
         id_chat = pedido_info['id_chat']
-        lat_actual = pedido_info['latitud']
-        lon_actual = pedido_info['longitud']
+        lat_actual = float(pedido_info['latitud'])
+        lon_actual = float(pedido_info['longitud'])
         
         if not self.validar_codigo(codigo_ingresado, codigo_correcto):
             return {"success": False, "mensaje": "Código incorrecto"}
@@ -452,34 +457,6 @@ class RepartidorService:
         resultado = self.enviar_siguiente_pedido(id_repartidor, tanda_id, id_pedido, lat_actual, lon_actual)
         return resultado
 
-    def asignar_repartidor(id_pedido, zona):
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        cur.execute(
-            "SELECT idrepartidor FROM repartidor WHERE zonaasignada = %s ORDER BY cantidadkmrecorridos ASC LIMIT 1",
-            (zona,)
-        )
-        repartidor = cur.fetchone()
-        
-        if not repartidor:
-            print(f"No se encontró repartidor para la zona {zona}")
-            cur.close()
-            conn.close()
-            return None
-
-        cur.execute("UPDATE pedido SET id_repartidor = %s WHERE idpedido = %s", (repartidor[0], id_pedido))
-        
-        if cur.rowcount == 0:
-            print(f"No se pudo asignar el repartidor {repartidor[0]} al pedido {id_pedido}")
-            cur.close()
-            conn.close()
-            return None
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        return repartidor[0]
 
     def registrar_recorrido(self, id_repartidor, km):
         km = float(km)  
@@ -512,9 +489,7 @@ class RepartidorService:
         return distancia
     
     def ordenar_pedidos_por_cercania_restaurante(self, pedidos):
-        
-        RESTAURANTE_LAT = -31.3876594
-        RESTAURANTE_LON = -57.9628518
+        from Util.coordenadas_gifs import RESTAURANTE_LAT, RESTAURANTE_LON
         
         def obtener_distancia(pedido):
             if hasattr(pedido, 'latitud') and hasattr(pedido, 'longitud'):
@@ -531,6 +506,7 @@ class RepartidorService:
     
     def calcular_km_ruta(self, id_repartidor, lista_pedidos):
         from Util.database import get_db_connection
+        from Util.coordenadas_gifs import RESTAURANTE_LAT, RESTAURANTE_LON
         
         if not lista_pedidos:
             return 0
@@ -538,8 +514,8 @@ class RepartidorService:
         conn = get_db_connection()
         cur = conn.cursor()
         
-        centro_lat = -31.3876594
-        centro_lon = -57.9628518
+        centro_lat = RESTAURANTE_LAT
+        centro_lon = RESTAURANTE_LON
         
         total_km = 0
         lat_anterior = centro_lat
