@@ -3,6 +3,7 @@ import json
 from google import genai
 from google.genai import types
 from Util.estado import get_estado
+from Util.database import get_db_session, Producto
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -29,6 +30,39 @@ estados_posibles = {
     "carrito": "flujo_carrito",
     "confirmacion": "flujo_confirmacion"
 }
+
+def buscar_producto(nombre: str) -> dict:
+    """
+    Busca un producto en la base de datos por nombre (búsqueda parcial, case insensitive).
+    Retorna el primer producto encontrado o None si no hay coincidencias.
+    """
+    db = get_db_session()
+    try:
+        # Buscar productos que contengan el nombre (case insensitive)
+        productos = db.query(Producto).filter(
+            Producto.nombre.ilike(f"%{nombre}%")
+        ).all()
+        
+        if productos:
+            # Retornar el primer producto encontrado
+            producto = productos[0]
+            return {
+                "producto_id": producto.idproducto,
+                "nombre": producto.nombre
+            }
+        else:
+            return {
+                "producto_id": None,
+                "nombre": None
+            }
+    except Exception as e:
+        print(f"⚠️ Error al buscar producto: {e}")
+        return {
+            "producto_id": None,
+            "nombre": None
+        }
+    finally:
+        db.close()
 
 def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
     if not numero:
@@ -106,6 +140,22 @@ Ejemplos:
 - Si waiting_for es "flujo_carrito" y el usuario escribe "menu" → respetar_waiting_for: false, accion: "flujo_categorias"
 """
 
+    # Definir tool schema para buscar_producto
+    tool_schema = {
+        "name": "buscar_producto",
+        "description": "Busca un producto en la base de datos por nombre. Úsala cuando el usuario mencione un producto específico que quiere agregar al carrito.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "nombre": {
+                    "type": "string",
+                    "description": "Nombre del producto a buscar (puede ser parcial, ej: 'coca cola', 'hamburguesa', 'pizza muzzarella')"
+                }
+            },
+            "required": ["nombre"]
+        }
+    }
+
     prompt = f"""Eres un orquestador de flujo de conversación para un sistema de entrega de productos.
 
 CONTEXTO ACTUAL:
@@ -132,6 +182,29 @@ COMANDOS ESPECIALES DEL CARRITO (cuando estado es "en_carrito"):
 - "3", "confirmar" → Confirmar pedido (se maneja en flujo_carrito)
 
 NOTA: Los comandos técnicos como "cat_*", "prod_*", "add_*" son comandos internos de botones interactivos y NO deben procesarse aquí.
+
+DETECCIÓN DE PRODUCTOS Y CANTIDADES EN LENGUAJE NATURAL:
+Si el usuario escribe un mensaje que menciona un producto y una cantidad (ej: "Quiero 3 Coca Cola zero 1.5", "Dame 2 hamburguesas", "Necesito 1 pizza muzzarella"):
+1. DEBES usar la función buscar_producto para encontrar el producto en la base de datos
+2. Extrae la cantidad mencionada (número)
+3. Una vez que tengas el producto_id y la cantidad:
+   - Establece "accion": "flujo_carrito"
+   - Establece "estado": "en_carrito"
+   - Establece "producto_id": [id del producto encontrado]
+   - Establece "cantidad_detectada": [cantidad extraída]
+   - Establece "respetar_waiting_for": true
+   - Establece "actualizar_waiting_for": "flujo_carrito"
+   - Establece "mensaje": [mensaje amigable confirmando lo agregado, ej: "Genial 😄 Agregué 3 Coca Cola Zero. ¿Confirmamos?"]
+
+Si el producto no se encuentra:
+- Establece "accion": "flujo_inicio"
+- Establece "mensaje": [mensaje amigable indicando que no se encontró el producto y sugiriendo usar el menú]
+- Establece "respetar_waiting_for": false
+
+Si no se puede detectar la cantidad:
+- Establece "accion": "flujo_cantidad"
+- Establece "mensaje": [pregunta al usuario la cantidad]
+- Establece "respetar_waiting_for": false
 
 MANEJO DE SALUDOS Y MENSAJES FUERA DE CONTEXTO:
 
@@ -177,16 +250,94 @@ Devuelve SOLO un JSON con este formato:
     "estado": "inicio",
     "respetar_waiting_for": false,
     "mensaje": "Texto opcional que se enviará al usuario",
-    "actualizar_waiting_for": "flujo_categorias"
-}}"""
+    "actualizar_waiting_for": "flujo_categorias",
+    "producto_id": 123,
+    "cantidad_detectada": 3
+}}
+
+NOTA: Los campos "producto_id" y "cantidad_detectada" solo deben incluirse cuando detectes un producto y cantidad en el mensaje del usuario."""
+    
+    # Configurar tools para Gemini
+    tools = [types.Tool(function_declarations=[types.FunctionDeclaration(
+        name=tool_schema["name"],
+        description=tool_schema["description"],
+        parameters=types.Schema(
+            type_=types.Type.OBJECT,
+            properties={
+                "nombre": types.Schema(
+                    type_=types.Type.STRING,
+                    description=tool_schema["parameters"]["properties"]["nombre"]["description"]
+                )
+            },
+            required=tool_schema["parameters"]["required"]
+        )
+    )])]
+    
     try:
+        # Primera llamada a Gemini con tools
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[prompt, "Devolveme sólo un JSON en la respuesta, sin explicaciones."],
             config=types.GenerateContentConfig(
+                tools=tools,
                 thinking_config=types.ThinkingConfig(thinking_budget=0)
             ),
         )
+        
+        # Verificar si Gemini quiere ejecutar una función
+        function_results = []
+        
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'content') and candidate.content:
+                parts = candidate.content.parts if hasattr(candidate.content, 'parts') else []
+                
+                # Buscar tool calls en la respuesta
+                tool_calls = []
+                for part in parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        tool_calls.append(part)
+                        tool_calls_found = True
+                
+                # Si hay tool calls, ejecutarlos y reenviar a Gemini
+                if tool_calls:
+                    for tool_call in tool_calls:
+                        func_name = tool_call.function_call.name
+                        # Los args pueden venir como string JSON o como dict
+                        if hasattr(tool_call.function_call, 'args'):
+                            if isinstance(tool_call.function_call.args, str):
+                                args = json.loads(tool_call.function_call.args)
+                            else:
+                                args = tool_call.function_call.args
+                        else:
+                            args = {}
+                        
+                        if func_name == "buscar_producto":
+                            nombre_producto = args.get("nombre", "")
+                            resultado = buscar_producto(nombre_producto)
+                            function_results.append(types.Part(
+                                function_response=types.FunctionResponse(
+                                    name=func_name,
+                                    response=resultado
+                                )
+                            ))
+                    
+                    # Reenviar resultado a Gemini para que genere la respuesta final
+                    contents_with_result = [
+                        prompt,
+                        "Devolveme sólo un JSON en la respuesta, sin explicaciones.",
+                        *[types.Part(function_call=tc.function_call) for tc in tool_calls],
+                        *function_results
+                    ]
+                    
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=contents_with_result,
+                        config=types.GenerateContentConfig(
+                            tools=tools,
+                            thinking_config=types.ThinkingConfig(thinking_budget=0)
+                        ),
+                    )
         
         # Obtener el texto de la respuesta
         response_text = response.text if hasattr(response, 'text') and response.text else ""

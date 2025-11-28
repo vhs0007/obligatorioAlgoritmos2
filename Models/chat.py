@@ -201,6 +201,49 @@ class Chat:
                 respetar_waiting_for = salida_gemini.get("respetar_waiting_for", False)
                 actualizar_waiting_for = salida_gemini.get("actualizar_waiting_for")
                 mensaje_gemini = salida_gemini.get("mensaje")
+                producto_id = salida_gemini.get("producto_id")
+                cantidad_detectada = salida_gemini.get("cantidad_detectada")
+                
+                # Manejar caso especial: detección de producto y cantidad (flujo directo al carrito)
+                if accion == "flujo_carrito" and producto_id and cantidad_detectada:
+                    try:
+                        # Agregar producto al carrito
+                        ok, err = self.pedido_service.add_to_cart_pedidos(
+                            numero, 
+                            producto_id, 
+                            cantidad_detectada
+                        )
+                        
+                        if not ok:
+                            # Error al agregar producto
+                            mensaje_error = f"❌ Error al agregar producto: {err}"
+                            if self.id_chat:
+                                self.chat_service.registrar_mensaje(self.id_chat, mensaje_error, es_cliente=False)
+                            return enviar_mensaje_whatsapp(numero, mensaje_error)
+                        
+                        # Actualizar estado
+                        estado = get_estado(numero)
+                        estado["state"] = "en_carrito"
+                        self.set_waiting_for(numero, "flujo_carrito")
+                        
+                        # Mostrar carrito
+                        res = self.pedido_service.mostrar_carrito_pedidos(numero)
+                        if res["empty"]:
+                            mensaje_carrito = res["body"]
+                        else:
+                            mensaje_carrito = res["body"]
+                        
+                        # Si hay mensaje de Gemini, usarlo; si no, usar el del carrito
+                        mensaje_final = mensaje_gemini if mensaje_gemini else mensaje_carrito
+                        
+                        if self.id_chat:
+                            self.chat_service.registrar_mensaje(self.id_chat, mensaje_final, es_cliente=False)
+                        
+                        return enviar_mensaje_whatsapp(numero, mensaje_final)
+                    except Exception as e:
+                        print(f"⚠️ Error al agregar producto al carrito: {e}")
+                        # Fallback: mostrar menú
+                        return self.flujo_inicio(numero, texto_lower)
                 
                 # Si hay un mensaje de Gemini, priorizarlo (para saludos y mensajes fuera de contexto)
                 if mensaje_gemini:
