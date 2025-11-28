@@ -200,7 +200,24 @@ class Chat:
                 accion = salida_gemini.get("accion")
                 respetar_waiting_for = salida_gemini.get("respetar_waiting_for", False)
                 actualizar_waiting_for = salida_gemini.get("actualizar_waiting_for")
+                mensaje_gemini = salida_gemini.get("mensaje")
                 
+                # Si hay un mensaje de Gemini, priorizarlo (para saludos y mensajes fuera de contexto)
+                if mensaje_gemini:
+                    # Si hay un mensaje, actualizar waiting_for si es necesario pero no ejecutar acción
+                    if actualizar_waiting_for:
+                        context_data = salida_gemini.get("context_data")
+                        self.set_waiting_for(numero, actualizar_waiting_for, context_data)
+                    elif not respetar_waiting_for:
+                        # Si no se respeta waiting_for, limpiarlo
+                        clear_waiting_for(numero)
+                    
+                    # Registrar y enviar el mensaje de Gemini
+                    if self.id_chat:
+                        self.chat_service.registrar_mensaje(self.id_chat, mensaje_gemini, es_cliente=False)
+                    return enviar_mensaje_whatsapp(numero, mensaje_gemini)
+                
+                # Si no hay mensaje de Gemini, proceder con el flujo normal
                 # Si Gemini indica que debe respetar el waiting_for actual
                 if respetar_waiting_for:
                     estado = get_estado(numero)
@@ -222,10 +239,6 @@ class Chat:
                         return self.function_map[accion](numero, texto_lower)
                     elif accion in self.function_graph:
                         return self.function_graph[accion]['function'](numero, texto_lower)
-                
-                mensaje_gemini = salida_gemini.get("mensaje")
-                if mensaje_gemini:
-                    return enviar_mensaje_whatsapp(numero, mensaje_gemini)
             
             return self.flujo_inicio(numero, texto_lower)
         except Exception as e:

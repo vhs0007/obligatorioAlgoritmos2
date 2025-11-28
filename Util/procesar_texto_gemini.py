@@ -133,28 +133,51 @@ COMANDOS ESPECIALES DEL CARRITO (cuando estado es "en_carrito"):
 
 NOTA: Los comandos técnicos como "cat_*", "prod_*", "add_*" son comandos internos de botones interactivos y NO deben procesarse aquí.
 
+MANEJO DE SALUDOS Y MENSAJES FUERA DE CONTEXTO:
+
+CASO A - Saludo sin estado de flujo asignado (estado_actual es "inicio" o no hay waiting_for):
+Si el mensaje es un saludo convencional (hola, buenos días, buenas tardes, buenas noches, hi, hello, etc.) o un mensaje que no corresponde al flujo esperado:
+- Establece "accion": "flujo_inicio"
+- Establece "estado": "inicio"
+- Establece "respetar_waiting_for": false
+- Establece "mensaje": [GENERA UNA RESPUESTA AMIGABLE AL SALUDO Y PREGUNTA QUÉ NECESITA EL USUARIO]
+  Ejemplo de mensaje: "¡Hola! 👋 ¿En qué puedo ayudarte hoy? Podés escribir *menu* para ver nuestras categorías de productos."
+
+CASO B - Saludo mientras se espera respuesta específica (hay waiting_for activo):
+Si el mensaje es un saludo o mensaje que NO responde a lo esperado en "{waiting_for if waiting_for else 'ninguna'}":
+- Establece "accion": [la acción correspondiente al waiting_for actual]
+- Establece "respetar_waiting_for": true (para mantener el flujo)
+- Establece "mensaje": [GENERA UNA RESPUESTA AMIGABLE QUE RECUERDE AL USUARIO QUÉ SE ESPERA]
+  Ejemplos según waiting_for:
+  - Si waiting_for es "flujo_carrito": "¡Hola! 😊 Estoy esperando que elijas una opción del carrito. Podés escribir '1' para quitar un producto, '2' para seguir comprando, o '3' para confirmar tu pedido."
+  - Si waiting_for es "flujo_cantidad": "¡Hola! 😊 Necesito que me indiques la cantidad que deseas. Escribí un número, por ejemplo: '2' o '2 sin cebolla'."
+  - Si waiting_for es "flujo_confirmacion": "¡Hola! 😊 Para confirmar tu pedido necesito tu ubicación. Enviá las coordenadas en formato: latitud, longitud (ej: -31.38, -57.96)"
+
 INSTRUCCIONES DE ORQUESTACIÓN:
-1. Si hay waiting_for activo, EVALÚA primero si el mensaje responde a lo esperado o quiere cambiar de flujo
-2. Si el mensaje es "menu", "menú" o similar → devuelve "flujo_categorias" (respetar_waiting_for: false)
-3. Si el mensaje es "carrito" → devuelve "flujo_carrito" (respetar_waiting_for: false si hay otro waiting_for)
-4. Si el mensaje es "ayuda" → devuelve "flujo_inicio" (respetar_waiting_for: false)
-5. Si waiting_for es "flujo_cantidad" y el mensaje empieza con un número → respetar_waiting_for: true, accion: "flujo_cantidad"
-6. Si waiting_for es "flujo_carrito" y el mensaje es "1", "2", "3", "quitar", "seguir", "confirmar" → respetar_waiting_for: true, accion: "flujo_carrito"
-7. Si waiting_for es "flujo_confirmacion" y el mensaje parece una ubicación (dos números separados por coma) → respetar_waiting_for: true, accion: "flujo_confirmacion"
-8. Si no hay contexto claro o el mensaje no coincide con ninguna opción → devuelve "flujo_inicio" (respetar_waiting_for: false)
+1. PRIMERO: Detecta si el mensaje es un saludo o mensaje fuera de contexto usando los casos A y B arriba
+2. Si hay waiting_for activo, EVALÚA primero si el mensaje responde a lo esperado o quiere cambiar de flujo
+3. Si el mensaje es "menu", "menú" o similar → devuelve "flujo_categorias" (respetar_waiting_for: false)
+4. Si el mensaje es "carrito" → devuelve "flujo_carrito" (respetar_waiting_for: false si hay otro waiting_for)
+5. Si el mensaje es "ayuda" → devuelve "flujo_inicio" (respetar_waiting_for: false)
+6. Si waiting_for es "flujo_cantidad" y el mensaje empieza con un número → respetar_waiting_for: true, accion: "flujo_cantidad"
+7. Si waiting_for es "flujo_carrito" y el mensaje es "1", "2", "3", "quitar", "seguir", "confirmar" → respetar_waiting_for: true, accion: "flujo_carrito"
+8. Si waiting_for es "flujo_confirmacion" y el mensaje parece una ubicación (dos números separados por coma) → respetar_waiting_for: true, accion: "flujo_confirmacion"
+9. Si no hay contexto claro o el mensaje no coincide con ninguna opción → devuelve "flujo_inicio" (respetar_waiting_for: false)
 
 IMPORTANTE: 
 - Siempre devuelve un JSON válido con "accion", "estado" y "respetar_waiting_for"
 - El "estado" debe ser uno de: {list(estados_posibles.keys())}
 - Si el usuario escribe algo que no entiendes, redirige a "flujo_inicio"
 - Si cambias de flujo (respetar_waiting_for: false), puedes opcionalmente incluir "actualizar_waiting_for" con el nuevo flujo esperado
+- Si generas un "mensaje" para el usuario, este será enviado directamente y NO se ejecutará la acción del flujo
 
 Devuelve SOLO un JSON con este formato:
 {{
     "accion": "flujo_inicio",
     "estado": "inicio",
     "respetar_waiting_for": false,
-    "actualizar_waiting_for": "flujo_categorias" (opcional, solo si quieres establecer un nuevo waiting_for)
+    "mensaje": "Texto opcional que se enviará al usuario",
+    "actualizar_waiting_for": "flujo_categorias"
 }}"""
     try:
         response = client.models.generate_content(

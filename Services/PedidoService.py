@@ -199,7 +199,7 @@ class PedidosService:
             longitud=longitud,
             estado="pendiente",
             fecha_confirmacion=datetime.now(),
-            codigo_verificacion=''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            codigo_verificacion=''.join(random.choices(string.digits, k=6))
         )
         self.db.add(pedido)
         self.db.commit()
