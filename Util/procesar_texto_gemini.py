@@ -2,9 +2,8 @@ import os
 import json
 from google import genai
 from google.genai import types
-from Util.estado import get_estado, update_estado
+from Util.estado import get_estado
 from Util.database import get_db_session, Producto
-from Util.mensajeria import enviar_mensaje_whatsapp
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -13,28 +12,145 @@ acciones_posibles = [
     "flujo_categorias",
     "flujo_productos",
     "flujo_cantidad",
-    "mostrar_carrito",
-    "sacar_producto",
-    "confirmar_pedido",
-    "buscar_producto_directo"
+    "flujo_carrito",
+    "flujo_confirmacion"
 ]
 
+palabras_clave = {
+    "menu": "flujo_categorias",
+    "productos": "flujo_productos",
+    "cantidad": "flujo_cantidad",
+    "carrito": "flujo_carrito",
+    "confirmar": "flujo_confirmacion"
+}
 
-def buscar_producto_directo(texto, db):
-    palabras = texto.lower().split()
-    cantidad = 1
+estados_posibles = {
+    "inicio": "flujo_inicio",
+    "categorias": "flujo_categorias",
+    "productos": "flujo_productos",
+    "cantidad": "flujo_cantidad",
+    "carrito": "flujo_carrito",
+    "confirmacion": "flujo_confirmacion"
+}
 
-    for i, p in enumerate(palabras):
-        if p.isdigit():
-            cantidad = int(p)
-            palabras.pop(i)
-            break
 
-    query = " ".join(palabras)
-    producto = db.query(Producto).filter(Producto.nombre.ilike(f"%{query}%")).first()
+def buscar_producto(nombre: str) -> dict:
+    db = get_db_session()
+    try:
+        productos = db.query(Producto).filter(
+            Producto.nombre.ilike(f"%{nombre}%")
+        ).all()
 
-    if producto:
-        return producto, cantidad
+        if productos:
+            producto = productos[0]
+            return {
+                "producto_id": producto.idproducto,
+                "nombre": producto.nombre
+            }
+        return None
+    except:
+        return None
+    finally:
+        db.close()
+
+
+def procesar_texto_gemini(numero: str, texto: str) -> dict:
+    estado = get_estado(numero)
+    waiting_for = estado.get("waiting_for")
+    estado_actual = estado.get("state", "inicio")
+
+    opciones_disponibles = []
+    if estado_actual == "inicio" or not estado_actual:
+        opciones_disponibles = ["menu"]
+    elif estado_actual == "categorias":
+        opciones_disponibles = ["productos"]
+    elif estado_actual == "productos":
+        opciones_disponibles = ["cantidad"]
+    elif estado_actual == "cantidad":
+        opciones_disponibles = ["confirmar"]
+    elif estado_actual == "carrito":
+        opciones_disponibles = ["confirmar"]
+
+    opciones_texto = "\n".join(opciones_disponibles)
+
+    prompt = f"""
+Sos un asistente que analiza el mensaje del usuario y respondés con JSON.
+
+Texto del usuario:
+"{texto}"
+
+Estado actual:
+"{estado_actual}"
+
+Si encontrás un producto existente en la base, devolvé:
+- producto_id
+- cantidad_detectada si el usuario dijo un número
+
+Devolvé siempre JSON.
+Opciones disponibles ahora:
+{opciones_texto}
+
+Formato de respuesta:
+{{
+  "accion": "...",
+  "producto_id": (opcional),
+  "cantidad_detectada": (opcional),
+  "mensaje": "..."
+}}
+"""
+
+    tool_schema = {
+        "name": "buscar_producto",
+        "description": "Busca productos por nombre",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "nombre": {
+                    "type": "string",
+                    "description": "Nombre del producto a buscar"
+                }
+            },
+            "required": ["nombre"]
+        }
+    }
+
+    try:
+        function_declaration = types.FunctionDeclaration(
+            name=tool_schema["name"],
+            description=tool_schema["description"],
+            parameters=tool_schema["parameters"]
+        )
+
+        tools = [types.Tool(function_declarations=[function_declaration])]
+    except:
+        tools = None
+
+    try:
+        config_params = {
+            "thinking_config": types.ThinkingConfig(thinking_budget=0)
+        }
+        if tools:
+            config_params["tools"] = tools
+
+        response = client.models.generate_content(
+            model="gemini-1.5-flash-latest",
+            contents=[prompt],
+            config=types.GenerateContentConfig(**config_params),
+        )
+
+        response_text = response.text if hasattr(response, "text") else ""
+
+        if not response_text:
+            return {"accion": "fallback", "mensaje": "No te entendí, ¿me repetís?"}
+
+        try:
+            parsed = json.loads(response_text)
+            return parsed
+        except:
+            return {"accion": "fallback", "mensaje": "No te entendí, ¿me repetís?"}
+
+    except:
+        return {"accion": "fallback", "mensaje": "Error procesando tu mensaje"}        return producto, cantidad
 
     return None, None
 
