@@ -116,20 +116,44 @@ def procesar_texto_gemini(texto: str, chat=None, numero: str = None) -> dict:
     info_waiting_for = ""
     if waiting_for:
         info_waiting_for = f"""
-IMPORTANTE - FUNCIÓN ESPERADA ACTIVA:
-El sistema está esperando que el usuario responda a: "{waiting_for}"
-Esto significa que el usuario está en medio de un flujo específico.
+REGLAS DE ORQUESTACIÓN (ACTUALIZADAS)
 
-DEBES EVALUAR:
-1. ¿El mensaje del usuario responde a lo que se espera en "{waiting_for}"?
-   - Si SÍ → establece "respetar_waiting_for": true y devuelve la acción correspondiente
-   - Si NO (el usuario quiere cambiar de flujo, ej: escribe "menu", "carrito", "cancelar") → establece "respetar_waiting_for": false y cambia la acción
+📌 PRIORIDAD 1 — PALABRAS CLAVE (ANULA CUALQUIER OTRA REGLA)
+Si el usuario dice: "menu", "menú", "categorias", "carrito", "ver carrito", 
+"confirmar", "cancelar", "ayuda", "volver", "inicio":
+- NO detectar productos ni cantidades
+- NO llamar a buscar_producto
+- Ejecutar la acción correspondiente directa:
+  "menu"/"menú"/"categorias" → flujo_categorias
+  "carrito"/"ver carrito" → mostrar_carrito
+  "confirmar" → confirmar_pedido
+  "cancelar" → cancelar_pedido
+  "volver" o "inicio" → flujo_inicio
+- Siempre: respetar_waiting_for = false
 
-Ejemplos:
-- Si waiting_for es "flujo_cantidad" y el usuario escribe "2" → respetar_waiting_for: true, accion: "flujo_cantidad"
-- Si waiting_for es "flujo_cantidad" y el usuario escribe "menu" → respetar_waiting_for: false, accion: "flujo_categorias"
-- Si waiting_for es "flujo_carrito" y el usuario escribe "1" → respetar_waiting_for: true, accion: "flujo_carrito"
-- Si waiting_for es "flujo_carrito" y el usuario escribe "menu" → respetar_waiting_for: false, accion: "flujo_categorias"
+📌 PRIORIDAD 2 — RESPETO AL ESTADO ACTUAL (restricción)
+Solo se permite detectar PRODUCTO + CANTIDAD cuando:
+estado_actual es "productos" o "cantidad"
+
+📌 PRIORIDAD 3 — DETECCIÓN DE CANTIDAD (si el estado lo pide)
+Si está esperando número (waiting_for == "cantidad"):
+- Si hay número en el mensaje → flujo_cantidad
+- NO intentar buscar producto
+
+📌 PRIORIDAD 4 — DETECCIÓN DE PRODUCTO + CANTIDAD
+Aplicar SOLO si pasa la Prioridad 2
+Si el usuario menciona un producto y una cantidad:
+- llamar a buscar_producto
+- Si lo encuentra → acción: flujo_cantidad
+- Si NO → pedir aclaración
+- Cantidad default si falta → 1 (nunca inventar cantidades mayores)
+
+📌 PRIORIDAD 5 — TEXTO INFORMATIVO GENERAL
+Si el usuario pregunta algo que no es compra:
+- Mantener el flujo actual
+- Responder con ayuda según contexto
+
+FIN DE REGLAS
 """
 
     tool_schema = {
